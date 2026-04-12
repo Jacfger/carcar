@@ -23,9 +23,12 @@ export function drawCar(
 ): void {
   ctx.save()
 
-  // Move to car world position, rotate to heading
+  // Move to car world position, rotate to heading.
+  // +π/2 offset: local -Y (front/sensors) aligns with the velocity direction
+  // (cos heading, sin heading). Without it the car would drive perpendicular
+  // to its own wheels.
   ctx.translate(car.x, car.y)
-  ctx.rotate(car.heading)
+  ctx.rotate(car.heading + Math.PI / 2)
 
   // ── Chassis ────────────────────────────────────────────────────────────────
   const baseColor = CAR_COLORS[car.colorIndex % CAR_COLORS.length]

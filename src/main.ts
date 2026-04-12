@@ -54,6 +54,8 @@ const togVariance     = document.getElementById('tog-variance')     as HTMLInput
 const togBattery      = document.getElementById('tog-battery')      as HTMLInputElement
 const togCaster       = document.getElementById('tog-caster')       as HTMLInputElement
 const togSensors      = document.getElementById('tog-sensors')      as HTMLInputElement
+const speedControl    = document.getElementById('speed-control')    as HTMLInputElement
+const speedValueLabel = document.getElementById('speed-value')      as HTMLSpanElement
 
 // ─── Simulation state ─────────────────────────────────────────────────────────
 let running       = false
@@ -192,8 +194,14 @@ function startSim(): void {
         if (error) { showError(error); stopSim(); return }
         showError(null)
 
-        // 2. Step motor/battery/heading model → desired velocity
-        const desired = stepCarModel(car, output.left, output.right, DT, {
+        // 2. Scale PWM by max-speed factor before motor model.
+        //    User's code still outputs in [-255, 255]; we reduce the effective
+        //    duty cycle here so the car runs slower without touching the PID.
+        const speedFactor = parseInt(speedControl.value) / 100
+        const scaledLeft  = output.left  * speedFactor
+        const scaledRight = output.right * speedFactor
+
+        const desired = stepCarModel(car, scaledLeft, scaledRight, DT, {
           batteryEnabled: togBattery.checked,
           casterEnabled:  togCaster.checked,
         })
@@ -252,6 +260,10 @@ btnAddCar.addEventListener('click', () => {
 })
 
 trackSelect.addEventListener('change', () => { stopSim(); rebuildScene() })
+
+speedControl.addEventListener('input', () => {
+  speedValueLabel.textContent = `${speedControl.value}%`
+})
 
 window.addEventListener('resize', () => { stopSim(); rebuildScene() })
 

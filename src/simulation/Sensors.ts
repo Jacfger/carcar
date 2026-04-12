@@ -12,8 +12,12 @@ export function readSensors(
   trackRenderer: TrackRenderer,
 ): number[] {
   const { sensor_count, sensor_spread, sensor_y } = CAR_GEOMETRY
-  const cosH = Math.cos(heading)
-  const sinH = Math.sin(heading)
+
+  // Apply the same +π/2 offset as the renderer so sensor world-positions
+  // match what is drawn on screen.
+  // cos(heading + π/2) = -sin(heading),  sin(heading + π/2) = cos(heading)
+  const cosH = -Math.sin(heading)
+  const sinH =  Math.cos(heading)
 
   const readings: number[] = []
 
@@ -22,7 +26,7 @@ export function readSensors(
     const lx = (i / (sensor_count - 1) - 0.5) * sensor_spread
     const ly = sensor_y
 
-    // Rotate from car-local to world coords
+    // Rotate from car-local to world coords (using the corrected basis)
     const wx = carX + lx * cosH - ly * sinH
     const wy = carY + lx * sinH + ly * cosH
 
