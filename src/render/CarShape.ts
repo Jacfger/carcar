@@ -1,5 +1,5 @@
 import { CAR_GEOMETRY, WHEEL_OFFSET_X } from '../constants'
-import type { CarState } from '../simulation/Car'
+import { CAR_COLORS, type CarState } from '../simulation/Car'
 
 const {
   chassis_w, chassis_h,
@@ -28,8 +28,9 @@ export function drawCar(
   ctx.rotate(car.heading)
 
   // ── Chassis ────────────────────────────────────────────────────────────────
-  ctx.fillStyle   = '#2a5caa'
-  ctx.strokeStyle = '#1a3c7a'
+  const baseColor = CAR_COLORS[car.colorIndex % CAR_COLORS.length]
+  ctx.fillStyle   = baseColor
+  ctx.strokeStyle = darken(baseColor)
   ctx.lineWidth   = 1.5
   ctx.beginPath()
   ctx.roundRect(-chassis_w / 2, -chassis_h / 2, chassis_w, chassis_h, 4)
@@ -37,7 +38,7 @@ export function drawCar(
   ctx.stroke()
 
   // Front arrow marker (helps show which way the car is facing)
-  ctx.fillStyle = '#6a9cff'
+  ctx.fillStyle = lighten(baseColor)
   ctx.beginPath()
   ctx.moveTo(0,              -chassis_h / 2 + 6)
   ctx.lineTo(-8,             -chassis_h / 2 + 18)
@@ -107,6 +108,23 @@ function drawWheel(ctx: CanvasRenderingContext2D, cx: number, cy: number): void 
     ctx.lineTo(cx + wheel_w / 2 - 1, ly)
     ctx.stroke()
   }
+}
+
+// ─── Colour helpers ────────────────────────────────────────────────────────────
+
+function parseHex(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16)
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
+}
+
+function darken(hex: string): string {
+  const [r, g, b] = parseHex(hex)
+  return `rgb(${Math.max(0, r - 40)},${Math.max(0, g - 40)},${Math.max(0, b - 40)})`
+}
+
+function lighten(hex: string): string {
+  const [r, g, b] = parseHex(hex)
+  return `rgb(${Math.min(255, r + 80)},${Math.min(255, g + 80)},${Math.min(255, b + 80)})`
 }
 
 function drawSensorBar(ctx: CanvasRenderingContext2D, sensors: number[]): void {

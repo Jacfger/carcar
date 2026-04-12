@@ -1,44 +1,43 @@
 import { Renderer }        from './render/Renderer'
 import { TrackRenderer }   from './track/TrackRenderer'
-import { createCar, resetCar, stepCar, type CarOptions } from './simulation/Car'
-import { createTelemetry, pushTelemetry }  from './render/Telemetry'
-import { compileUserCode, callUserCode }   from './editor/Sandbox'
-import { weightedCentroid }                from './simulation/Sensors'
-import { makeOvalTrack }                   from './track/presets/oval'
-import { makeFigure8Track }                from './track/presets/figure8'
-import { makeChicaneTrack }                from './track/presets/chicane'
-import { DEFAULT_PID_CODE }                from './editor/defaultCode'
-import { PHYSICS_HZ }                      from './constants'
-import type { Track }                      from './track/Track'
+import {
+  createCar, resetCar, stepCarModel, applyResolvedMotion,
+  type CarState, type CarOptions,
+} from './simulation/Car'
+import { PhysicsWorld }                        from './simulation/Physics'
+import { createTelemetry, pushTelemetry }      from './render/Telemetry'
+import { compileUserCode, callUserCode }        from './editor/Sandbox'
+import { weightedCentroid }                    from './simulation/Sensors'
+import { makeOvalTrack }                       from './track/presets/oval'
+import { makeFigure8Track }                    from './track/presets/figure8'
+import { makeChicaneTrack }                    from './track/presets/chicane'
+import { DEFAULT_PID_CODE }                    from './editor/defaultCode'
+import { PHYSICS_HZ }                          from './constants'
+import type { Track }                          from './track/Track'
 
-// ─── Monaco lazy-load ──────────────────────────────────────────────────────────
-// Monaco bundles are large — import dynamically so Vite can chunk them.
+const MAX_CARS = 4
+
+// ─── Monaco lazy-load ─────────────────────────────────────────────────────────
 async function loadMonaco(container: HTMLElement, initialCode: string) {
   const monaco = await import('monaco-editor')
-
   monaco.editor.defineTheme('pid-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [],
+    base: 'vs-dark', inherit: true, rules: [],
     colors: {
       'editor.background':          '#12122a',
       'editor.lineHighlightBorder': '#1a1a3a',
     },
   })
-
-  const editor = monaco.editor.create(container, {
-    value:             initialCode,
-    language:          'javascript',
-    theme:             'pid-dark',
-    fontSize:          12,
-    minimap:           { enabled: false },
+  return monaco.editor.create(container, {
+    value:    initialCode,
+    language: 'javascript',
+    theme:    'pid-dark',
+    fontSize: 12,
+    minimap:  { enabled: false },
     scrollBeyondLastLine: false,
-    lineNumbers:       'on',
-    wordWrap:          'on',
-    automaticLayout:   true,
+    lineNumbers:    'on',
+    wordWrap:       'on',
+    automaticLayout: true,
   })
-
-  return editor
 }
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
@@ -47,6 +46,8 @@ const telemetryCanvas = document.getElementById('telemetry-canvas') as HTMLCanva
 const editorMount     = document.getElementById('editor-mount')     as HTMLElement
 const btnRun          = document.getElementById('btn-run')          as HTMLButtonElement
 const btnReset        = document.getElementById('btn-reset')        as HTMLButtonElement
+const btnAddCar       = document.getElementById('btn-add-car')      as HTMLButtonElement
+const carCountLabel   = document.getElementById('car-count-label')  as HTMLSpanElement
 const trackSelect     = document.getElementById('track-select')     as HTMLSelectElement
 const errorDisplay    = document.getElementById('error-display')    as HTMLDivElement
 const togVariance     = document.getElementById('tog-variance')     as HTMLInputElement
@@ -54,26 +55,27 @@ const togBattery      = document.getElementById('tog-battery')      as HTMLInput
 const togCaster       = document.getElementById('tog-caster')       as HTMLInputElement
 const togSensors      = document.getElementById('tog-sensors')      as HTMLInputElement
 
-// ─── State ────────────────────────────────────────────────────────────────────
+// ─── Simulation state ─────────────────────────────────────────────────────────
 let running       = false
 let rafId         = 0
 let lastTimestamp = 0
 let accumulator   = 0
 const DT          = 1 / PHYSICS_HZ
 
-const trackRenderer  = new TrackRenderer(1, 1)   // sized on first resize
+const physics        = new PhysicsWorld()
+const trackRenderer  = new TrackRenderer(1, 1)
 const renderer       = new Renderer(trackCanvas, telemetryCanvas)
 const telemetry      = createTelemetry()
 
 let currentTrack: Track
-let carOptions: CarOptions
-let car = createCar({ startX: 0, startY: 0, startAngle: 0, varianceEnabled: false, batteryEnabled: false, casterEnabled: false })
+let cars: CarState[] = []
+let carOptionsList: CarOptions[] = []
 
-// ─── Track management ─────────────────────────────────────────────────────────
+// ─── Track & car management ───────────────────────────────────────────────────
+
 function buildTrack(): Track {
   const W = trackCanvas.clientWidth  || window.innerWidth  * 0.7
   const H = trackCanvas.clientHeight || window.innerHeight - 48
-
   switch (trackSelect.value) {
     case 'figure8': return makeFigure8Track(W, H)
     case 'chicane': return makeChicaneTrack(W, H)
@@ -81,42 +83,73 @@ function buildTrack(): Track {
   }
 }
 
-function getCarOptions(): CarOptions {
+function makeCarOptions(index: number): CarOptions {
+  // Offset start position slightly per car so they don't stack exactly
+  const offsetX =  Math.sin(index * 1.2) * 20
+  const offsetY = -index * 30
   return {
-    startX:          currentTrack.startX,
-    startY:          currentTrack.startY,
+    startX:          currentTrack.startX + offsetX,
+    startY:          currentTrack.startY + offsetY,
     startAngle:      currentTrack.startAngle,
     varianceEnabled: togVariance.checked,
     batteryEnabled:  togBattery.checked,
     casterEnabled:   togCaster.checked,
+    colorIndex:      index,
   }
+}
+
+function addCar(index: number): void {
+  const opts = makeCarOptions(index)
+  carOptionsList.push(opts)
+  const body = physics.addCarBody(opts.startX, opts.startY, opts.startAngle)
+  cars.push(createCar(opts, body))
+  updateCarCountLabel()
+}
+
+function clearCars(): void {
+  for (const car of cars) physics.removeCarBody(car.body)
+  cars = []
+  carOptionsList = []
+}
+
+function updateCarCountLabel(): void {
+  carCountLabel.textContent = `${cars.length} car${cars.length !== 1 ? 's' : ''}`
+  btnAddCar.disabled = cars.length >= MAX_CARS
 }
 
 function rebuildScene(): void {
   currentTrack = buildTrack()
+
+  // Resize offscreen track canvas (in physical pixels)
+  const pr = window.devicePixelRatio || 1
   trackRenderer.resize(
-    Math.round(trackCanvas.clientWidth  * (window.devicePixelRatio || 1)),
-    Math.round(trackCanvas.clientHeight * (window.devicePixelRatio || 1)),
+    Math.round(trackCanvas.clientWidth  * pr),
+    Math.round(trackCanvas.clientHeight * pr),
     currentTrack,
   )
-  carOptions = getCarOptions()
-  car = createCar(carOptions)
-  // Render one static frame immediately
+
+  // Rebuild physics walls
+  physics.setBounds(trackCanvas.clientWidth, trackCanvas.clientHeight)
+
+  // Rebuild all cars
+  const prevCount = Math.max(cars.length, 1)
+  clearCars()
+  for (let i = 0; i < prevCount; i++) addCar(i)
+
   renderer.resize()
-  renderer.drawFrame(trackRenderer, car, telemetry, togSensors.checked)
+  renderer.drawFrame(trackRenderer, cars, telemetry, togSensors.checked)
 }
 
-// ─── Run / stop ───────────────────────────────────────────────────────────────
+// ─── Error display ────────────────────────────────────────────────────────────
+
 function showError(msg: string | null): void {
-  if (msg) {
-    errorDisplay.textContent = msg
-    errorDisplay.style.display = 'block'
-  } else {
-    errorDisplay.style.display = 'none'
-  }
+  errorDisplay.textContent = msg ?? ''
+  errorDisplay.style.display = msg ? 'block' : 'none'
 }
 
-let monacoEditor: Awaited<ReturnType<typeof import('monaco-editor')['editor']['create']>> | null = null
+// ─── Simulation loop ──────────────────────────────────────────────────────────
+
+let monacoEditor: Awaited<ReturnType<typeof loadMonaco>> | null = null
 
 function startSim(): void {
   if (running) return
@@ -125,7 +158,6 @@ function startSim(): void {
   accumulator   = 0
   lastTimestamp = performance.now()
 
-  // Compile user code from Monaco
   const code = monacoEditor?.getValue() ?? DEFAULT_PID_CODE
   const err  = compileUserCode(code)
   showError(err)
@@ -135,41 +167,58 @@ function startSim(): void {
     if (!running) return
     rafId = requestAnimationFrame(loop)
 
-    const elapsed = Math.min((ts - lastTimestamp) / 1000, 0.1)  // cap at 100ms
+    const elapsed = Math.min((ts - lastTimestamp) / 1000, 0.1)
     lastTimestamp = ts
     accumulator  += elapsed
 
     while (accumulator >= DT) {
       accumulator -= DT
 
-      // Call user PID
-      const { output, error } = callUserCode(
-        car.sensors,
-        DT,
-        { voltage: car.battery.voltage, speed: Math.hypot(car.vx, car.vy) / 1600, time: car.time },
-      )
+      // Collect other car bodies for collision (filled per-car below)
+      const allBodies = cars.map(c => c.body)
 
-      if (error) {
-        showError(error)
-        stopSim()
-        return
+      for (const car of cars) {
+        // 1. Call user PID
+        const { output, error } = callUserCode(
+          car.sensors,
+          DT,
+          {
+            voltage: car.battery.voltage,
+            speed:   Math.hypot(car.vx, car.vy) / 1600,
+            time:    car.time,
+          },
+        )
+
+        if (error) { showError(error); stopSim(); return }
+        showError(null)
+
+        // 2. Step motor/battery/heading model → desired velocity
+        const desired = stepCarModel(car, output.left, output.right, DT, {
+          batteryEnabled: togBattery.checked,
+          casterEnabled:  togCaster.checked,
+        })
+
+        // 3. Resolve collisions (walls + all other car bodies)
+        const otherBodies = allBodies.filter(b => b !== car.body)
+        const resolved = physics.resolve(
+          car.body,
+          desired.vx, desired.vy, desired.omega,
+          otherBodies,
+          DT,
+        )
+
+        // 4. Apply resolved motion + sample sensors
+        applyResolvedMotion(car, resolved.vx, resolved.vy, resolved.omega, DT, trackRenderer)
       }
-      showError(null)
 
-      // Step physics
-      stepCar(car, output.left, output.right, DT, trackRenderer, {
-        batteryEnabled: togBattery.checked,
-        casterEnabled:  togCaster.checked,
-      })
-
-      // Record telemetry at reduced rate (every 4 ticks)
-      if (Math.round(car.time / DT) % 4 === 0) {
-        const err = weightedCentroid(car.sensors)
-        pushTelemetry(telemetry, err, car.pwmL, car.pwmR, car.battery.voltage)
+      // Record telemetry for car[0] every 4 ticks
+      if (cars.length > 0 && Math.round(cars[0].time / DT) % 4 === 0) {
+        const c = cars[0]
+        pushTelemetry(telemetry, weightedCentroid(c.sensors), c.pwmL, c.pwmR, c.battery.voltage)
       }
     }
 
-    renderer.drawFrame(trackRenderer, car, telemetry, togSensors.checked)
+    renderer.drawFrame(trackRenderer, cars, telemetry, togSensors.checked)
   }
 
   rafId = requestAnimationFrame(loop)
@@ -183,30 +232,35 @@ function stopSim(): void {
 
 function resetSim(): void {
   stopSim()
-  carOptions = getCarOptions()
-  resetCar(car, carOptions)
-  renderer.drawFrame(trackRenderer, car, telemetry, togSensors.checked)
+  for (let i = 0; i < cars.length; i++) {
+    const opts = makeCarOptions(i)
+    carOptionsList[i] = opts
+    resetCar(cars[i], opts)
+  }
+  renderer.drawFrame(trackRenderer, cars, telemetry, togSensors.checked)
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
+
 btnRun.addEventListener('click', () => running ? stopSim() : startSim())
 btnReset.addEventListener('click', resetSim)
-trackSelect.addEventListener('change', () => { stopSim(); rebuildScene() })
 
-window.addEventListener('resize', () => {
-  stopSim()
-  rebuildScene()
+btnAddCar.addEventListener('click', () => {
+  if (cars.length >= MAX_CARS) return
+  addCar(cars.length)
+  renderer.drawFrame(trackRenderer, cars, telemetry, togSensors.checked)
 })
 
+trackSelect.addEventListener('change', () => { stopSim(); rebuildScene() })
+
+window.addEventListener('resize', () => { stopSim(); rebuildScene() })
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
+
 async function boot() {
-  // Initial scene
   rebuildScene()
 
-  // Load Monaco (async, non-blocking for first render)
-  monacoEditor = await loadMonaco(editorMount, DEFAULT_PID_CODE) as typeof monacoEditor
-
-  // Pre-compile the default code so Run works immediately
+  monacoEditor = await loadMonaco(editorMount, DEFAULT_PID_CODE)
   compileUserCode(DEFAULT_PID_CODE)
 }
 

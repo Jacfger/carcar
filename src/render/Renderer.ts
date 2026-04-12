@@ -19,9 +19,9 @@ export class Renderer {
   }
 
   resize(): void {
-    const tc = this.trackCanvas
     const pr = window.devicePixelRatio || 1
 
+    const tc = this.trackCanvas
     tc.width  = tc.clientWidth  * pr
     tc.height = tc.clientHeight * pr
     this.trackCtx.scale(pr, pr)
@@ -32,11 +32,12 @@ export class Renderer {
     this.telemetryCtx.scale(pr, pr)
   }
 
+  /** Draw all cars and telemetry for car[0] (primary car). */
   drawFrame(
     trackRenderer: TrackRenderer,
-    car: CarState,
-    telemetry: TelemetryData,
-    showSensors: boolean,
+    cars:          CarState[],
+    telemetry:     TelemetryData,
+    showSensors:   boolean,
   ): void {
     const ctx = this.trackCtx
     const W   = this.trackCanvas.clientWidth
@@ -45,16 +46,20 @@ export class Renderer {
     // Blit the offscreen track image
     ctx.drawImage(trackRenderer.offscreen, 0, 0, W, H)
 
-    // Draw car
-    drawCar(ctx, car, showSensors)
+    // Draw all cars (back-to-front by colorIndex so car 0 is always on top)
+    for (let i = cars.length - 1; i >= 0; i--) {
+      drawCar(ctx, cars[i], showSensors)
+    }
 
-    // Draw telemetry
-    drawTelemetry(
-      this.telemetryCtx,
-      this.telemetryCanvas,
-      telemetry,
-      BATTERY.V_min,
-      BATTERY.V_full,
-    )
+    // Telemetry always tracks car[0] (the "player" car)
+    if (cars.length > 0) {
+      drawTelemetry(
+        this.telemetryCtx,
+        this.telemetryCanvas,
+        telemetry,
+        BATTERY.V_min,
+        BATTERY.V_full,
+      )
+    }
   }
 }
