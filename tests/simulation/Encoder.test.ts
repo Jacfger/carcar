@@ -35,5 +35,7 @@ describe('resetEncoder', () => {
     expect(enc.ticks).toBe(0)
     expect(enc.angle).toBe(0)
     expect(enc.fracTick).toBe(0)
+    expect(enc.channelA).toBe(false)
+    expect(enc.channelB).toBe(false)
   })
 })
