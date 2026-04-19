@@ -11,7 +11,8 @@ export class EncoderTab {
 
   private waveCanvas!: HTMLCanvasElement
   private waveCtx!:    CanvasRenderingContext2D
-  private waveBuffer: Array<{ a: boolean; b: boolean }> = []
+  private waveBufferL: Array<{ a: boolean; b: boolean }> = []
+  private waveBufferR: Array<{ a: boolean; b: boolean }> = []
 
   private velCanvas!:  HTMLCanvasElement
   private velCtx!:     CanvasRenderingContext2D
@@ -98,8 +99,8 @@ export class EncoderTab {
 
     // A/B square wave
     this.waveCanvas = document.createElement('canvas')
-    this.waveCanvas.height        = 46
-    this.waveCanvas.style.cssText = 'width:100%;height:46px;display:block;flex-shrink:0'
+    this.waveCanvas.height        = 80
+    this.waveCanvas.style.cssText = 'width:100%;height:80px;display:block;flex-shrink:0'
     this.mount.appendChild(this.waveCanvas)
     this.waveCtx = this.waveCanvas.getContext('2d')!
 
@@ -128,8 +129,10 @@ export class EncoderTab {
     this.curAngleR = stateR.angle
     this.curCpr    = stateL.params.cpr
 
-    this.waveBuffer.push({ a: stateL.channelA, b: stateL.channelB })
-    if (this.waveBuffer.length > WAVE_LEN) this.waveBuffer.shift()
+    this.waveBufferL.push({ a: stateL.channelA, b: stateL.channelB })
+    if (this.waveBufferL.length > WAVE_LEN) this.waveBufferL.shift()
+    this.waveBufferR.push({ a: stateR.channelA, b: stateR.channelB })
+    if (this.waveBufferR.length > WAVE_LEN) this.waveBufferR.shift()
 
     if (dt > 0) {
       // Store raw ticks/s — conversion to m/s happens in _drawVelocity
@@ -307,18 +310,29 @@ export class EncoderTab {
     ctx.fillStyle = '#12122a'
     ctx.fillRect(0, 0, W, H)
 
-    if (this.waveBuffer.length < 2) return
+    // Separator between L and R groups
+    ctx.strokeStyle = '#1e2a40'
+    ctx.lineWidth   = 1
+    ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke()
 
-    const midA = H * 0.26, midB = H * 0.74, amp = H * 0.18
+    type WaveBuf = Array<{ a: boolean; b: boolean }>
+    const channels: Array<{ buf: WaveBuf; ch: 'a' | 'b'; color: string; label: string; y0: number }> = [
+      { buf: this.waveBufferL, ch: 'a', color: '#00d8d8', label: 'L·A', y0: 0       },
+      { buf: this.waveBufferL, ch: 'b', color: '#0060d8', label: 'L·B', y0: H * 0.25 },
+      { buf: this.waveBufferR, ch: 'a', color: '#d800d8', label: 'R·A', y0: H * 0.5  },
+      { buf: this.waveBufferR, ch: 'b', color: '#a000a0', label: 'R·B', y0: H * 0.75 },
+    ]
 
-    ;(['a', 'b'] as const).forEach((ch, idx) => {
-      const mid   = idx === 0 ? midA : midB
-      const color = idx === 0 ? '#4a80ff' : '#ff6b6b'
+    channels.forEach(({ buf, ch, color, label, y0 }) => {
+      if (buf.length < 2) return
+      const mid = y0 + H * 0.125
+      const amp = H * 0.09
+
       ctx.strokeStyle = color
       ctx.lineWidth   = 1.5 * dpr
       ctx.beginPath()
       let prevHi: boolean | null = null
-      this.waveBuffer.forEach((s, i) => {
+      buf.forEach((s, i) => {
         const hi = s[ch]
         const x  = (i / (WAVE_LEN - 1)) * W
         const y  = hi ? mid - amp : mid + amp
@@ -334,9 +348,11 @@ export class EncoderTab {
         prevHi = hi
       })
       ctx.stroke()
-      ctx.font      = `${10 * dpr}px monospace`
+
+      ctx.font      = `${9 * dpr}px monospace`
       ctx.fillStyle = color
-      ctx.fillText(ch.toUpperCase(), 4 * dpr, mid - amp - 2 * dpr)
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, 3 * dpr, mid)
     })
   }
 
