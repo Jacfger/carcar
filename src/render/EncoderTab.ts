@@ -27,14 +27,13 @@ export class EncoderTab {
   private showLeft       = true
   private showMeters     = false   // false = ticks/s, true = m/s
   private smoothWin      = 10      // moving-average window (samples)
+  private displayMaxAbs  = 10      // lerped y-scale ceiling (ticks/s or m/s)
 
   private running = false
   private rafId   = 0
 
-  private curAngle    = 0
-  private curCpr      = 12
-  private curChannelA = false
-  private curChannelB = false
+  private curAngle = 0
+  private curCpr   = 12
 
   private prevTicksL   = 0
   private prevTicksR   = 0
@@ -140,8 +139,7 @@ export class EncoderTab {
     const state = this.showLeft ? stateL : stateR
     this.curAngle    = state.angle
     this.curCpr      = state.params.cpr
-    this.curChannelA = state.channelA
-    this.curChannelB = state.channelB
+
 
     this.waveBuffer.push({ a: state.channelA, b: state.channelB })
     if (this.waveBuffer.length > WAVE_LEN) this.waveBuffer.shift()
@@ -233,8 +231,8 @@ export class EncoderTab {
     }
 
     const Rmid = (Rslot + Ri) * 0.5
-    this._drawSensor(ctx, cx, cy, SENSOR_A_ANGLE, Rmid, S, '#2255ff', '#4a80ff', this.curChannelA, 'A')
-    this._drawSensor(ctx, cx, cy, SENSOR_B_ANGLE, Rmid, S, '#cc2222', '#ff5555', this.curChannelB, 'B')
+    this._drawSensor(ctx, cx, cy, SENSOR_A_ANGLE, Rmid, S, '#2255ff', '#4a80ff', this._discSensorHigh(SENSOR_A_ANGLE), 'A')
+    this._drawSensor(ctx, cx, cy, SENSOR_B_ANGLE, Rmid, S, '#cc2222', '#ff5555', this._discSensorHigh(SENSOR_B_ANGLE), 'B')
 
     ctx.fillStyle = '#0a0a20'
     ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, Math.PI * 2); ctx.fill()
@@ -276,6 +274,15 @@ export class EncoderTab {
     ctx.textAlign    = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(label, lx, ly)
+  }
+
+  // Sensor HIGH if a slot is visually under worldAngle — must match slot half-width in _drawDisc
+  private _discSensorHigh(worldAngle: number): boolean {
+    const local  = ((worldAngle - this.curAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)
+    const period = Math.PI * 2 / this.curCpr
+    const phase  = local % period
+    const halfW  = Math.PI / this.curCpr * 0.5
+    return phase < halfW || phase > period - halfW
   }
 
   // ── A/B waveform ─────────────────────────────────────────────────────────────
@@ -351,13 +358,18 @@ export class EncoderTab {
     ctx.fillStyle = '#0e0e20'
     ctx.fillRect(0, 0, W, H)
 
-    // Auto y-scale using smoothed buffers so the range doesn't jitter
+    // Auto y-scale using smoothed buffers; lerp toward target to limit jump rate
     const smL0 = this._smooth(this.velBufL)
     const smR0 = this._smooth(this.velBufR)
-    let maxAbs  = this.showMeters ? 0.05 : 10
-    for (const v of smL0) if (Math.abs(v * scale) > maxAbs) maxAbs = Math.abs(v * scale)
-    for (const v of smR0) if (Math.abs(v * scale) > maxAbs) maxAbs = Math.abs(v * scale)
-    maxAbs *= 1.15
+    let targetMax = this.showMeters ? 0.05 : 10
+    for (const v of smL0) if (Math.abs(v * scale) > targetMax) targetMax = Math.abs(v * scale)
+    for (const v of smR0) if (Math.abs(v * scale) > targetMax) targetMax = Math.abs(v * scale)
+    targetMax *= 1.15
+    // Fast expansion (0.15), slow contraction (0.03) so the scale chases peaks
+    // quickly but doesn't shrink back until the signal is clearly lower.
+    const lerpK = targetMax > this.displayMaxAbs ? 0.15 : 0.03
+    this.displayMaxAbs += (targetMax - this.displayMaxAbs) * lerpK
+    const maxAbs = this.displayMaxAbs
 
     const pad = { top: 16, bottom: 4, left: 4, right: 4 }
     const iW  = W - pad.left - pad.right
