@@ -65,16 +65,17 @@ function mirrorY(segment: BezierSegment): BezierSegment {
 }
 
 export function buildToothProfile(geometry: GearGeometry): ToothProfile {
+  const involuteLimitRadius = geometry.isInternal ? geometry.dedendumRadius : geometry.addendumRadius
   const [first, second] = twoCubicInvolute({
     baseRadius: geometry.baseRadius,
-    addendumRadius: geometry.addendumRadius,
+    addendumRadius: involuteLimitRadius,
   })
   const mirroredFirst = mirrorY(first)
   const mirroredSecond = mirrorY(second)
 
   return {
     flank: [first, second],
-    mirroredFlank: [mirroredSecond, mirroredFirst],
+    mirroredFlank: [mirroredFirst, mirroredSecond],
     tipStart: second.p3,
     tipEnd: mirroredSecond.p3,
     pitchAngle: (2 * Math.PI) / Math.abs(geometry.teeth),
