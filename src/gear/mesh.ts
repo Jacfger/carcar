@@ -22,8 +22,7 @@ export interface GearPair {
 }
 
 function defaultBacklash(moduleValue: number): number {
-  void moduleValue
-  return 0
+  return 0.04 * moduleValue
 }
 
 export function calculateMesh(pinion: Gear, gear: Gear, options?: MeshOptions): GearPair {
@@ -39,17 +38,46 @@ export function calculateMesh(pinion: Gear, gear: Gear, options?: MeshOptions): 
     throw new Error('pressure angle must match')
   }
 
-  const backlash = options?.backlash ?? defaultBacklash(moduleA)
-  if (backlash < 0) {
+  if (options?.backlash !== undefined && options.backlash < 0) {
     throw new Error('backlash must be >= 0')
   }
 
   const r1 = pinion.geometry.pitchRadius
   const r2 = gear.geometry.pitchRadius
-  const hasInternal = pinion.geometry.isInternal || gear.geometry.isInternal
+  const pinionInternal = pinion.geometry.isInternal
+  const gearInternal = gear.geometry.isInternal
+  if (pinionInternal && gearInternal) {
+    throw new Error('internal-internal pairs are not supported')
+  }
+
+  const hasInternal = pinionInternal || gearInternal
   const nominalCenterDistance = hasInternal ? Math.abs(r2 - r1) : r1 + r2
-  const deltaC = backlash / (2 * Math.tan(pressureAngle))
-  const centerDistance = options?.centerDistance ?? nominalCenterDistance + deltaC
+  const hasBacklash = options?.backlash !== undefined
+  const hasCenterDistance = options?.centerDistance !== undefined
+  const tanPressure = Math.tan(pressureAngle)
+  const epsilon = 1e-9
+
+  let centerDistance: number
+  let backlash: number
+
+  if (hasBacklash && hasCenterDistance) {
+    const providedBacklash = options.backlash as number
+    const providedCenterDistance = options.centerDistance as number
+    const expectedCenterDistance = nominalCenterDistance + providedBacklash / (2 * tanPressure)
+
+    if (Math.abs(providedCenterDistance - expectedCenterDistance) > epsilon) {
+      throw new Error('centerDistance and backlash must be consistent')
+    }
+
+    centerDistance = providedCenterDistance
+    backlash = providedBacklash
+  } else if (hasCenterDistance) {
+    centerDistance = options.centerDistance as number
+    backlash = 2 * tanPressure * (centerDistance - nominalCenterDistance)
+  } else {
+    backlash = hasBacklash ? (options.backlash as number) : defaultBacklash(moduleA)
+    centerDistance = nominalCenterDistance + backlash / (2 * tanPressure)
+  }
 
   return {
     pinion,
@@ -62,10 +90,11 @@ export function calculateMesh(pinion: Gear, gear: Gear, options?: MeshOptions): 
       return { gear: pinion, x: 0, y: 0, rotation: 0 }
     },
     getPositionedGear(): PositionedGear {
-      return { gear, x: centerDistance, y: 0, rotation: 0 }
+      return { gear, x: centerDistance, y: 0, rotation: 180 / Math.abs(gear.geometry.teeth) }
     },
     toSvgPath(options?: SvgOptions): string {
-      return `${pinion.toSvgPath(options)} ${gear.toSvgPath(options)}`
+      void options
+      throw new Error('GearPair.toSvgPath is not implemented: Gear.toSvgPath cannot position gears yet')
     },
   }
 }
