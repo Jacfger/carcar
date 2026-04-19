@@ -352,15 +352,6 @@ function loop(ts) {
   const cxL = W / 2 - gap - R
   const cxR = W / 2 + gap + R
 
-  // Axle
-  const ag = dctx.createLinearGradient(0, cy - R*0.04, 0, cy + R*0.04)
-  ag.addColorStop(0, '#2a3a55'); ag.addColorStop(0.5, '#3a5070'); ag.addColorStop(1, '#141e2e')
-  dctx.strokeStyle = ag
-  dctx.lineWidth   = R * 0.065
-  dctx.lineCap     = 'round'
-  dctx.beginPath(); dctx.moveTo(cxL, cy); dctx.lineTo(cxR, cy); dctx.stroke()
-  dctx.lineCap = 'butt'
-
   drawDisc(cxL, cy, R, angleL, CPR, laHi, lbHi,
     '#003560', '#00e5ff',   // A: dim, bright
     '#001050', '#0066ff')   // B: dim, bright
