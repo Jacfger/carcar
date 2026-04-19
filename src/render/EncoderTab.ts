@@ -26,6 +26,7 @@ export class EncoderTab {
   private unitBtn!:      HTMLButtonElement
   private showLeft       = true
   private showMeters     = false   // false = ticks/s, true = m/s
+  private smoothWin      = 10      // moving-average window (samples)
 
   private running = false
   private rafId   = 0
@@ -78,7 +79,24 @@ export class EncoderTab {
       this._refreshBtns()
     })
 
-    btnRow.append(this.leftBtn, this.rightBtn, spacer, this.unitBtn)
+    // Smooth slider
+    const smoothLabel = document.createElement('span')
+    smoothLabel.style.cssText = 'font-size:10px;color:#7090b0;white-space:nowrap'
+    smoothLabel.textContent   = `avg: ${this.smoothWin}`
+
+    const smoothSlider = document.createElement('input')
+    smoothSlider.type  = 'range'
+    smoothSlider.min   = '1'
+    smoothSlider.max   = '60'
+    smoothSlider.step  = '1'
+    smoothSlider.value = String(this.smoothWin)
+    smoothSlider.style.cssText = 'width:56px;accent-color:#e94560;cursor:pointer'
+    smoothSlider.addEventListener('input', () => {
+      this.smoothWin = parseInt(smoothSlider.value)
+      smoothLabel.textContent = `avg: ${this.smoothWin}`
+    })
+
+    btnRow.append(this.leftBtn, this.rightBtn, spacer, smoothLabel, smoothSlider, this.unitBtn)
     this.mount.appendChild(btnRow)
     this._refreshBtns()
 
@@ -307,6 +325,19 @@ export class EncoderTab {
 
   // ── Velocity graph ────────────────────────────────────────────────────────────
 
+  private _smooth(buf: number[]): number[] {
+    const w = Math.max(1, this.smoothWin)
+    if (w === 1) return buf
+    const out: number[] = new Array(buf.length)
+    let   sum = 0, count = 0
+    for (let i = 0; i < buf.length; i++) {
+      sum += buf[i]; count++
+      if (i >= w) { sum -= buf[i - w]; count-- }
+      out[i] = sum / count
+    }
+    return out
+  }
+
   private _drawVelocity(): void {
     const dpr   = window.devicePixelRatio || 1
     const W     = this.velCanvas.offsetWidth * dpr
@@ -320,10 +351,12 @@ export class EncoderTab {
     ctx.fillStyle = '#0e0e20'
     ctx.fillRect(0, 0, W, H)
 
-    // Auto y-scale in the current display unit
-    let maxAbs = this.showMeters ? 0.05 : 10
-    for (const v of this.velBufL) if (Math.abs(v * scale) > maxAbs) maxAbs = Math.abs(v * scale)
-    for (const v of this.velBufR) if (Math.abs(v * scale) > maxAbs) maxAbs = Math.abs(v * scale)
+    // Auto y-scale using smoothed buffers so the range doesn't jitter
+    const smL0 = this._smooth(this.velBufL)
+    const smR0 = this._smooth(this.velBufR)
+    let maxAbs  = this.showMeters ? 0.05 : 10
+    for (const v of smL0) if (Math.abs(v * scale) > maxAbs) maxAbs = Math.abs(v * scale)
+    for (const v of smR0) if (Math.abs(v * scale) > maxAbs) maxAbs = Math.abs(v * scale)
     maxAbs *= 1.15
 
     const pad = { top: 16, bottom: 4, left: 4, right: 4 }
@@ -343,8 +376,8 @@ export class EncoderTab {
       ctx.strokeStyle = color
       ctx.lineWidth   = 1.5 * dpr
       ctx.beginPath()
-      buf.forEach((raw, i) => {
-        const v  = raw * scale
+      buf.forEach((v0, i) => {
+        const v  = v0 * scale
         const fx = 0.5 - v / (2 * maxAbs)
         const px = pad.left + (i / (VEL_LEN - 1)) * iW
         const py = pad.top  + iH * Math.max(0, Math.min(1, fx))
@@ -353,12 +386,14 @@ export class EncoderTab {
       ctx.stroke()
     }
 
-    drawLine(this.velBufL, '#00d8d8')   // cyan   = left
-    drawLine(this.velBufR, '#d800d8')   // magenta = right
+    drawLine(smL0, '#00d8d8')   // cyan   = left
+    drawLine(smR0, '#d800d8')   // magenta = right
 
-    // Current-value labels
-    const lv = (this.velBufL.length > 0 ? this.velBufL[this.velBufL.length - 1] : 0) * scale
-    const rv = (this.velBufR.length > 0 ? this.velBufR[this.velBufR.length - 1] : 0) * scale
+    // Current-value labels (use smoothed last sample)
+    const smL = smL0
+    const smR = smR0
+    const lv  = (smL.length > 0 ? smL[smL.length - 1] : 0) * scale
+    const rv  = (smR.length > 0 ? smR[smR.length - 1] : 0) * scale
 
     ctx.font         = `${10 * dpr}px monospace`
     ctx.textBaseline = 'top'
