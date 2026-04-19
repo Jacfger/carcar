@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInternalGear, createSpurGear } from '../gear'
+import { calculateMesh as calculateMeshFromIndex, createGearPair as createGearPairFromIndex } from '../index'
 
 describe('gear outputs', () => {
   it('createSpurGear outputs non-empty svg path with M and C commands', () => {
@@ -40,5 +41,12 @@ describe('gear outputs', () => {
     const gear = createInternalGear({ module: 3, teeth: -40, pressureAngle: 20 })
 
     expect(gear.geometry.isInternal).toBe(true)
+  })
+})
+
+describe('public index exports', () => {
+  it('exports meshing API', () => {
+    expect(typeof calculateMeshFromIndex).toBe('function')
+    expect(typeof createGearPairFromIndex).toBe('function')
   })
 })
