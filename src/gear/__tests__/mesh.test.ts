@@ -40,10 +40,18 @@ describe('mesh calculations', () => {
     )
   })
 
-  it('toSvgPath throws not implemented', () => {
+  it('returns concatenated svg path for both gears', () => {
     const a = createSpurGear({ module: 3, teeth: 20, pressureAngle: 20 })
     const b = createSpurGear({ module: 3, teeth: 40, pressureAngle: 20 })
     const pair = calculateMesh(a, b, { backlash: 0 })
-    expect(() => pair.toSvgPath()).toThrow(/not implemented/i)
+    const path = pair.toSvgPath()
+    expect(typeof path).toBe('string')
+    expect(path).toMatch(/[MmLlHhVvCcSsQqTtAaZz]/)
+  })
+
+  it('throws when centerDistance is below nominal and implies negative backlash', () => {
+    const a = createSpurGear({ module: 3, teeth: 20, pressureAngle: 20 })
+    const b = createSpurGear({ module: 3, teeth: 40, pressureAngle: 20 })
+    expect(() => calculateMesh(a, b, { centerDistance: 89.9 })).toThrow(/centerDistance cannot be below nominal/i)
   })
 })

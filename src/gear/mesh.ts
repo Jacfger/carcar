@@ -74,6 +74,9 @@ export function calculateMesh(pinion: Gear, gear: Gear, options?: MeshOptions): 
   } else if (hasCenterDistance) {
     centerDistance = options.centerDistance as number
     backlash = 2 * tanPressure * (centerDistance - nominalCenterDistance)
+    if (backlash < 0) {
+      throw new Error('centerDistance cannot be below nominal for non-negative backlash')
+    }
   } else {
     backlash = hasBacklash ? (options.backlash as number) : defaultBacklash(moduleA)
     centerDistance = nominalCenterDistance + backlash / (2 * tanPressure)
@@ -93,8 +96,7 @@ export function calculateMesh(pinion: Gear, gear: Gear, options?: MeshOptions): 
       return { gear, x: centerDistance, y: 0, rotation: 180 / Math.abs(gear.geometry.teeth) }
     },
     toSvgPath(options?: SvgOptions): string {
-      void options
-      throw new Error('GearPair.toSvgPath is not implemented: Gear.toSvgPath cannot position gears yet')
+      return `${pinion.toSvgPath(options)} ${gear.toSvgPath(options)}`
     },
   }
 }
