@@ -46,11 +46,22 @@ export function twoCubicInvolute(input: {
   startFraction?: number
   splitFraction?: number
 }): [BezierSegment, BezierSegment] {
+  if (!Number.isFinite(input.baseRadius) || !Number.isFinite(input.addendumRadius)) {
+    throw new Error('baseRadius and addendumRadius must be finite numbers')
+  }
+  if (input.baseRadius <= 0) {
+    throw new Error('baseRadius must be > 0')
+  }
+
   const fs = input.startFraction ?? 0.01
   const fm = input.splitFraction ?? 0.25
+  if (!(fs >= 0 && fs < fm && fm < 1)) {
+    throw new Error('fractions must satisfy 0 <= startFraction < splitFraction < 1')
+  }
+
   const thetaA = involuteThetaAtRadius(input.baseRadius, input.addendumRadius)
   const first = cubicFromArcFractions(input.baseRadius, thetaA, fs, fm)
   const second = cubicFromArcFractions(input.baseRadius, thetaA, fm, 1)
-  second.p0 = first.p3
+  second.p0 = { x: first.p3.x, y: first.p3.y }
   return [first, second]
 }

@@ -28,4 +28,42 @@ describe('involute equations', () => {
     const psi = involutePolarAngle(10, 12)
     expect(Number.isFinite(psi)).toBe(true)
   })
+
+  it('twoCubicInvolute throws when fractions are invalid', () => {
+    expect(() =>
+      twoCubicInvolute({ baseRadius: 20, addendumRadius: 28, startFraction: -0.1 }),
+    ).toThrowError('fractions must satisfy 0 <= startFraction < splitFraction < 1')
+
+    expect(() =>
+      twoCubicInvolute({ baseRadius: 20, addendumRadius: 28, splitFraction: 1 }),
+    ).toThrowError('fractions must satisfy 0 <= startFraction < splitFraction < 1')
+
+    expect(() =>
+      twoCubicInvolute({
+        baseRadius: 20,
+        addendumRadius: 28,
+        startFraction: 0.3,
+        splitFraction: 0.2,
+      }),
+    ).toThrowError('fractions must satisfy 0 <= startFraction < splitFraction < 1')
+  })
+
+  it('involuteThetaAtRadius throws when radius is below baseRadius', () => {
+    expect(() => involuteThetaAtRadius(10, 9.99)).toThrowError(
+      'radius must be >= baseRadius for involute',
+    )
+  })
+
+  it('involutePolarAngle throws when radius is below baseRadius', () => {
+    expect(() => involutePolarAngle(10, 9.99)).toThrowError(
+      'radius must be >= baseRadius for involute angle',
+    )
+  })
+
+  it('twoCubicInvolute continuity points are equal values but not same reference', () => {
+    const [first, second] = twoCubicInvolute({ baseRadius: 20, addendumRadius: 28 })
+    expect(first.p3.x).toBeCloseTo(second.p0.x, 8)
+    expect(first.p3.y).toBeCloseTo(second.p0.y, 8)
+    expect(second.p0).not.toBe(first.p3)
+  })
 })
