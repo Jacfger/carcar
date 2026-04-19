@@ -47,6 +47,22 @@ function createGear(params: GearParams): Gear {
     params,
     geometry,
     toSvgPath(options?: SvgOptions): string {
+      if (options) {
+        const unsupportedOptions = [
+          'centerX',
+          'centerY',
+          'rotation',
+          'includeAxleHole',
+          'axleHoleRadius',
+        ] as const
+
+        for (const optionName of unsupportedOptions) {
+          if (Object.prototype.hasOwnProperty.call(options, optionName)) {
+            throw new Error(`toSvgPath option "${optionName}" is not implemented`)
+          }
+        }
+      }
+
       const decimals = options?.decimals ?? 3
       const commands = [
         moveTo(segments[0].p0, decimals),
@@ -60,6 +76,11 @@ function createGear(params: GearParams): Gear {
     },
     toPoints(options?: PointOptions): Point[] {
       const samplesPerCurve = options?.samplesPerCurve ?? 12
+
+      if (!Number.isInteger(samplesPerCurve) || samplesPerCurve <= 0) {
+        throw new Error('toPoints expects samplesPerCurve to be a positive integer')
+      }
+
       return segments.flatMap((segment) => sampleCubic(segment, samplesPerCurve))
     },
     getBezierControlPoints(): BezierSegment[] {

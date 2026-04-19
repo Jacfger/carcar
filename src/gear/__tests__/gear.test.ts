@@ -18,6 +18,24 @@ describe('gear outputs', () => {
     expect(points.length).toBeGreaterThan(10)
   })
 
+  it('toPoints throws for zero, negative, and non-integer samplesPerCurve', () => {
+    const gear = createSpurGear({ module: 2, teeth: 24 })
+
+    expect(() => gear.toPoints({ samplesPerCurve: 0 })).toThrow(/positive integer/)
+    expect(() => gear.toPoints({ samplesPerCurve: -1 })).toThrow(/positive integer/)
+    expect(() => gear.toPoints({ samplesPerCurve: 2.5 })).toThrow(/positive integer/)
+  })
+
+  it('toSvgPath throws when unsupported transform or axle-hole options are provided', () => {
+    const gear = createSpurGear({ module: 2, teeth: 24 })
+
+    expect(() => gear.toSvgPath({ centerX: 10 })).toThrow(/not implemented/)
+    expect(() => gear.toSvgPath({ centerY: 5 })).toThrow(/not implemented/)
+    expect(() => gear.toSvgPath({ rotation: 45 })).toThrow(/not implemented/)
+    expect(() => gear.toSvgPath({ includeAxleHole: true })).toThrow(/not implemented/)
+    expect(() => gear.toSvgPath({ axleHoleRadius: 1.5 })).toThrow(/not implemented/)
+  })
+
   it('createInternalGear marks geometry as internal', () => {
     const gear = createInternalGear({ module: 3, teeth: -40, pressureAngle: 20 })
 
