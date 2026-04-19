@@ -40,13 +40,17 @@ describe('mesh calculations', () => {
     )
   })
 
-  it('returns concatenated svg path for both gears', () => {
+  it('returns svg path with positioned driven gear', () => {
     const a = createSpurGear({ module: 3, teeth: 20, pressureAngle: 20 })
     const b = createSpurGear({ module: 3, teeth: 40, pressureAngle: 20 })
     const pair = calculateMesh(a, b, { backlash: 0 })
+
+    const rawUnpositionedConcat = `${a.toSvgPath()} ${b.toSvgPath()}`
     const path = pair.toSvgPath()
+
     expect(typeof path).toBe('string')
-    expect(path).toMatch(/[MmLlHhVvCcSsQqTtAaZz]/)
+    expect(path).not.toBe(rawUnpositionedConcat)
+    expect(path.match(/\bM\b/g)?.length ?? 0).toBeGreaterThanOrEqual(2)
   })
 
   it('throws when centerDistance is below nominal and implies negative backlash', () => {
