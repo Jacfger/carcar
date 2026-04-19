@@ -156,23 +156,21 @@ window.addEventListener('resize', resize)
 resize()
 
 // ── Gear path ─────────────────────────────────────────────────────────────────
-// Draws a gear outline. R = pitch/tip radius, Ri = root radius, N = tooth count.
 function gearPath(cx, cy, R, N, angle) {
-  const Ri    = R * 0.78
+  const Ri    = R * 0.80
   const pitch = Math.PI * 2 / N
-  const tw    = pitch * 0.32   // tooth half-width (angular)
+  const tw    = pitch * 0.26   // tooth half-width
 
+  // Start at the base of tooth 0's leading face so every arc is explicit —
+  // never rely on canvas's implicit chord line-to when arc start != current pos.
   ctx.beginPath()
+  ctx.moveTo(cx + Ri * Math.cos(angle - tw), cy + Ri * Math.sin(angle - tw))
   for (let i = 0; i < N; i++) {
     const c = angle + i * pitch
-    // Root arc → leading tooth face
-    ctx.arc(cx, cy, Ri, c - pitch * 0.5, c - tw, false)
-    // Up to tip
-    ctx.lineTo(cx + R * Math.cos(c - tw), cy + R * Math.sin(c - tw))
-    // Tip arc
-    ctx.arc(cx, cy, R, c - tw, c + tw, false)
-    // Down to root
-    ctx.lineTo(cx + Ri * Math.cos(c + tw), cy + Ri * Math.sin(c + tw))
+    ctx.lineTo(cx + R  * Math.cos(c - tw), cy + R  * Math.sin(c - tw))  // leading face up
+    ctx.arc(cx, cy, R,  c - tw, c + tw, false)                           // tip arc
+    ctx.lineTo(cx + Ri * Math.cos(c + tw), cy + Ri * Math.sin(c + tw))  // trailing face down
+    ctx.arc(cx, cy, Ri, c + tw, c + pitch - tw, false)                  // root arc to next tooth
   }
   ctx.closePath()
 }
@@ -376,7 +374,7 @@ function layout(W, H, side) {
   const encCX = side < 0
     ? halfW - eR - margin
     : W - eR - margin
-  const whlCX = encCX - eR - dR * 2
+  const whlCX = encCX - (dR + eR)   // pitch circles touch at whlCX + dR = encCX - eR
 
   const cy = H / 2
 
@@ -468,8 +466,8 @@ function drawWheelAssembly(g, wheelAngle, encAngle, cpr, hiA, hiB, dimA, brightA
   // Encoder gear + disc
   drawEncoder(encCX, cy, eR, eN, encAngle, cpr, hiA, hiB, dimA, brightA, dimB, brightB)
 
-  // Mesh contact dot
-  const mx = whlCX + dR + (encCX - whlCX - dR - eR) / 2 + eR
+  // Mesh contact dot — sits exactly where the pitch circles touch
+  const mx = whlCX + dR
   const my = cy
   ctx.fillStyle = labelCol + '40'
   ctx.beginPath(); ctx.arc(mx, my, dR * 0.06, 0, Math.PI * 2); ctx.fill()
