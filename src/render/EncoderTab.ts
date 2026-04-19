@@ -1,8 +1,9 @@
 import type { EncoderState } from '../simulation/Encoder'
 
-const WAVE_LEN       = 200
-const SENSOR_A_ANGLE =  Math.PI / 10   // +18° from 3 o'clock
-const SENSOR_B_ANGLE = -Math.PI / 10   // -18° from 3 o'clock
+const WAVE_LEN       = 400
+const VEL_LEN        = 400
+const SENSOR_A_ANGLE =  Math.PI / 10
+const SENSOR_B_ANGLE = -Math.PI / 10
 
 export class EncoderTab {
   private discCanvas!: HTMLCanvasElement
@@ -12,10 +13,19 @@ export class EncoderTab {
   private waveCtx!:    CanvasRenderingContext2D
   private waveBuffer: Array<{ a: boolean; b: boolean }> = []
 
-  private tickReadout!: HTMLDivElement
-  private leftBtn!:     HTMLButtonElement
-  private rightBtn!:    HTMLButtonElement
-  private showLeft      = true
+  private velCanvas!:  HTMLCanvasElement
+  private velCtx!:     CanvasRenderingContext2D
+  // Buffers store ticks/s (raw observed rate); conversion to m/s happens on draw
+  private velBufL:     number[] = []
+  private velBufR:     number[] = []
+  private metersPerTick = 0   // updated each tick from encoder params
+
+  private tickReadout!:  HTMLDivElement
+  private leftBtn!:      HTMLButtonElement
+  private rightBtn!:     HTMLButtonElement
+  private unitBtn!:      HTMLButtonElement
+  private showLeft       = true
+  private showMeters     = false   // false = ticks/s, true = m/s
 
   private running = false
   private rafId   = 0
@@ -24,6 +34,10 @@ export class EncoderTab {
   private curCpr      = 12
   private curChannelA = false
   private curChannelB = false
+
+  private prevTicksL   = 0
+  private prevTicksR   = 0
+  private lastUpdateMs = -1
 
   constructor(private mount: HTMLElement) {
     this._buildDOM()
@@ -45,14 +59,26 @@ export class EncoderTab {
     this.discCtx = this.discCanvas.getContext('2d')!
 
     const btnRow = document.createElement('div')
-    btnRow.style.cssText = 'display:flex;gap:4px;padding:4px 8px;flex-shrink:0;background:#16213e'
+    btnRow.style.cssText =
+      'display:flex;gap:4px;padding:4px 8px;flex-shrink:0;background:#16213e;align-items:center'
+
     this.leftBtn  = document.createElement('button')
     this.rightBtn = document.createElement('button')
     this.leftBtn.textContent  = 'Left'
     this.rightBtn.textContent = 'Right'
     this.leftBtn.addEventListener('click',  () => { this.showLeft = true;  this._refreshBtns() })
     this.rightBtn.addEventListener('click', () => { this.showLeft = false; this._refreshBtns() })
-    btnRow.append(this.leftBtn, this.rightBtn)
+
+    const spacer = document.createElement('div')
+    spacer.style.cssText = 'flex:1'
+
+    this.unitBtn = document.createElement('button')
+    this.unitBtn.addEventListener('click', () => {
+      this.showMeters = !this.showMeters
+      this._refreshBtns()
+    })
+
+    btnRow.append(this.leftBtn, this.rightBtn, spacer, this.unitBtn)
     this.mount.appendChild(btnRow)
     this._refreshBtns()
 
@@ -62,11 +88,19 @@ export class EncoderTab {
     this.tickReadout.textContent = 'L: +000000  R: +000000'
     this.mount.appendChild(this.tickReadout)
 
+    // A/B square wave
     this.waveCanvas = document.createElement('canvas')
-    this.waveCanvas.height        = 50
-    this.waveCanvas.style.cssText = 'width:100%;height:50px;display:block;flex-shrink:0'
+    this.waveCanvas.height        = 46
+    this.waveCanvas.style.cssText = 'width:100%;height:46px;display:block;flex-shrink:0'
     this.mount.appendChild(this.waveCanvas)
     this.waveCtx = this.waveCanvas.getContext('2d')!
+
+    // Velocity graph
+    this.velCanvas = document.createElement('canvas')
+    this.velCanvas.height        = 72
+    this.velCanvas.style.cssText = 'width:100%;height:72px;display:block;flex-shrink:0'
+    this.mount.appendChild(this.velCanvas)
+    this.velCtx = this.velCanvas.getContext('2d')!
   }
 
   private _refreshBtns(): void {
@@ -74,13 +108,18 @@ export class EncoderTab {
     const off = 'background:#0f3460;color:#a0b0c0;border-color:#0f3460'
     this.leftBtn.style.cssText  = `font-size:10px;padding:2px 10px;border-radius:3px;cursor:pointer;border:1px solid;${this.showLeft  ? on : off}`
     this.rightBtn.style.cssText = `font-size:10px;padding:2px 10px;border-radius:3px;cursor:pointer;border:1px solid;${!this.showLeft ? on : off}`
+    this.unitBtn.textContent    = this.showMeters ? 'm/s' : 'ticks/s'
+    this.unitBtn.style.cssText  = `font-size:10px;padding:2px 10px;border-radius:3px;cursor:pointer;border:1px solid;${on}`
   }
 
   // ── Public API ────────────────────────────────────────────────────────────────
 
   update(stateL: EncoderState, stateR: EncoderState): void {
-    const state = this.showLeft ? stateL : stateR
+    const now = performance.now()
+    const dt  = this.lastUpdateMs >= 0 ? (now - this.lastUpdateMs) / 1000 : 0
+    this.lastUpdateMs = now
 
+    const state = this.showLeft ? stateL : stateR
     this.curAngle    = state.angle
     this.curCpr      = state.params.cpr
     this.curChannelA = state.channelA
@@ -88,6 +127,19 @@ export class EncoderTab {
 
     this.waveBuffer.push({ a: state.channelA, b: state.channelB })
     if (this.waveBuffer.length > WAVE_LEN) this.waveBuffer.shift()
+
+    if (dt > 0) {
+      // Store raw ticks/s — conversion to m/s happens in _drawVelocity
+      const rateL = (stateL.ticks - this.prevTicksL) / dt
+      const rateR = (stateR.ticks - this.prevTicksR) / dt
+      this.velBufL.push(rateL); if (this.velBufL.length > VEL_LEN) this.velBufL.shift()
+      this.velBufR.push(rateR); if (this.velBufR.length > VEL_LEN) this.velBufR.shift()
+    }
+    this.prevTicksL = stateL.ticks
+    this.prevTicksR = stateR.ticks
+
+    const { wheelRadius, cpr, gearRatio } = stateL.params
+    this.metersPerTick = (2 * Math.PI * wheelRadius) / (cpr * gearRatio * 4)
 
     const fmt = (n: number) => (n >= 0 ? '+' : '') + String(Math.abs(Math.trunc(n))).padStart(6, '0')
     this.tickReadout.textContent = `L: ${fmt(stateL.ticks)}  R: ${fmt(stateR.ticks)}`
@@ -120,7 +172,10 @@ export class EncoderTab {
       this._drawDisc(size)
     }
     this._drawWaveform()
+    this._drawVelocity()
   }
+
+  // ── 2D disc ───────────────────────────────────────────────────────────────────
 
   private _drawDisc(S: number): void {
     const ctx   = this.discCtx
@@ -134,18 +189,15 @@ export class EncoderTab {
 
     ctx.clearRect(0, 0, S, S)
 
-    // outer glow
     const grd = ctx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R * 1.1)
     grd.addColorStop(0, 'rgba(30,50,120,0)')
     grd.addColorStop(1, 'rgba(30,60,180,0.12)')
     ctx.fillStyle = grd
     ctx.beginPath(); ctx.arc(cx, cy, R * 1.1, 0, Math.PI * 2); ctx.fill()
 
-    // disc body
     ctx.fillStyle = '#1a1a3a'
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill()
 
-    // slot segments (rotate with disc)
     for (let i = 0; i < cpr; i++) {
       const center = angle + (i / cpr) * Math.PI * 2
       const a0 = center - Math.PI / cpr * 0.5
@@ -153,7 +205,7 @@ export class EncoderTab {
       ctx.beginPath()
       ctx.moveTo(cx + Math.cos(a0) * Ri, cy + Math.sin(a0) * Ri)
       ctx.arc(cx, cy, Rslot, a0, a1)
-      ctx.arc(cx, cy, Ri,    a1, a0, true)
+      ctx.arc(cx, cy, Ri, a1, a0, true)
       ctx.closePath()
       ctx.fillStyle   = '#1e35cc'
       ctx.fill()
@@ -162,37 +214,25 @@ export class EncoderTab {
       ctx.stroke()
     }
 
-    // sensors (fixed in world space, channelA/B from simulation)
     const Rmid = (Rslot + Ri) * 0.5
     this._drawSensor(ctx, cx, cy, SENSOR_A_ANGLE, Rmid, S, '#2255ff', '#4a80ff', this.curChannelA, 'A')
     this._drawSensor(ctx, cx, cy, SENSOR_B_ANGLE, Rmid, S, '#cc2222', '#ff5555', this.curChannelB, 'B')
 
-    // hub
     ctx.fillStyle = '#0a0a20'
     ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, Math.PI * 2); ctx.fill()
     ctx.fillStyle = '#1a1a38'
     ctx.beginPath(); ctx.arc(cx, cy, Rh, 0, Math.PI * 2); ctx.fill()
-    ctx.strokeStyle = '#2a3a6a'
-    ctx.lineWidth   = 1
+    ctx.strokeStyle = '#2a3a6a'; ctx.lineWidth = 1
     ctx.beginPath(); ctx.arc(cx, cy, Rh, 0, Math.PI * 2); ctx.stroke()
 
-    // outer ring
-    ctx.strokeStyle = '#2a3a6a'
-    ctx.lineWidth   = 1.5
+    ctx.strokeStyle = '#2a3a6a'; ctx.lineWidth = 1.5
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke()
   }
 
   private _drawSensor(
-    ctx:         CanvasRenderingContext2D,
-    cx:          number,
-    cy:          number,
-    worldAngle:  number,
-    r:           number,
-    S:           number,
-    dimColor:    string,
-    brightColor: string,
-    active:      boolean,
-    label:       string,
+    ctx: CanvasRenderingContext2D, cx: number, cy: number,
+    worldAngle: number, r: number, S: number,
+    dimColor: string, brightColor: string, active: boolean, label: string,
   ): void {
     const sx = cx + Math.cos(worldAngle) * r
     const sy = cy + Math.sin(worldAngle) * r
@@ -207,9 +247,7 @@ export class EncoderTab {
 
     if (active) {
       ctx.fillStyle = 'rgba(255,255,255,0.3)'
-      ctx.beginPath()
-      ctx.arc(sx - sr * 0.25, sy - sr * 0.3, sr * 0.35, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.beginPath(); ctx.arc(sx - sr * 0.25, sy - sr * 0.3, sr * 0.35, 0, Math.PI * 2); ctx.fill()
     }
 
     const labelDist  = S * 0.42 * 1.16
@@ -221,6 +259,8 @@ export class EncoderTab {
     ctx.textBaseline = 'middle'
     ctx.fillText(label, lx, ly)
   }
+
+  // ── A/B waveform ─────────────────────────────────────────────────────────────
 
   private _drawWaveform(): void {
     const dpr = window.devicePixelRatio || 1
@@ -263,5 +303,80 @@ export class EncoderTab {
       ctx.fillStyle = color
       ctx.fillText(ch.toUpperCase(), 4 * dpr, mid - amp - 2 * dpr)
     })
+  }
+
+  // ── Velocity graph ────────────────────────────────────────────────────────────
+
+  private _drawVelocity(): void {
+    const dpr   = window.devicePixelRatio || 1
+    const W     = this.velCanvas.offsetWidth * dpr
+    const H     = this.velCanvas.height * dpr
+    if (this.velCanvas.width !== W) this.velCanvas.width = W
+
+    const ctx   = this.velCtx
+    const scale = this.showMeters ? this.metersPerTick : 1
+    const unit  = this.showMeters ? 'm/s' : 'ticks/s'
+
+    ctx.fillStyle = '#0e0e20'
+    ctx.fillRect(0, 0, W, H)
+
+    // Auto y-scale in the current display unit
+    let maxAbs = this.showMeters ? 0.05 : 10
+    for (const v of this.velBufL) if (Math.abs(v * scale) > maxAbs) maxAbs = Math.abs(v * scale)
+    for (const v of this.velBufR) if (Math.abs(v * scale) > maxAbs) maxAbs = Math.abs(v * scale)
+    maxAbs *= 1.15
+
+    const pad = { top: 16, bottom: 4, left: 4, right: 4 }
+    const iW  = W - pad.left - pad.right
+    const iH  = H - pad.top  - pad.bottom
+
+    // Zero line
+    const zy = pad.top + iH * 0.5
+    ctx.strokeStyle = '#2a2a4a'
+    ctx.lineWidth   = 1
+    ctx.setLineDash([2, 3])
+    ctx.beginPath(); ctx.moveTo(pad.left, zy); ctx.lineTo(W - pad.right, zy); ctx.stroke()
+    ctx.setLineDash([])
+
+    const drawLine = (buf: number[], color: string): void => {
+      if (buf.length < 2) return
+      ctx.strokeStyle = color
+      ctx.lineWidth   = 1.5 * dpr
+      ctx.beginPath()
+      buf.forEach((raw, i) => {
+        const v  = raw * scale
+        const fx = 0.5 - v / (2 * maxAbs)
+        const px = pad.left + (i / (VEL_LEN - 1)) * iW
+        const py = pad.top  + iH * Math.max(0, Math.min(1, fx))
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+      })
+      ctx.stroke()
+    }
+
+    drawLine(this.velBufL, '#00d8d8')   // cyan   = left
+    drawLine(this.velBufR, '#d800d8')   // magenta = right
+
+    // Current-value labels
+    const lv = (this.velBufL.length > 0 ? this.velBufL[this.velBufL.length - 1] : 0) * scale
+    const rv = (this.velBufR.length > 0 ? this.velBufR[this.velBufR.length - 1] : 0) * scale
+
+    ctx.font         = `${10 * dpr}px monospace`
+    ctx.textBaseline = 'top'
+    ctx.fillStyle    = '#00d8d8'
+    ctx.textAlign    = 'left'
+    ctx.fillText(`L ${lv.toFixed(this.showMeters ? 2 : 0)} ${unit}`, pad.left + 4 * dpr, 3 * dpr)
+    ctx.fillStyle    = '#d800d8'
+    ctx.textAlign    = 'right'
+    ctx.fillText(`R ${rv.toFixed(this.showMeters ? 2 : 0)} ${unit}`, W - pad.right - 4 * dpr, 3 * dpr)
+
+    // Scale indicator
+    ctx.fillStyle    = '#3a4a6a'
+    ctx.textAlign    = 'right'
+    ctx.textBaseline = 'middle'
+    ctx.font         = `${9 * dpr}px monospace`
+    const scaleLabel = this.showMeters
+      ? `±${maxAbs.toFixed(2)} m/s`
+      : `±${Math.round(maxAbs)} ticks/s`
+    ctx.fillText(scaleLabel, W - pad.right - 2 * dpr, zy)
   }
 }

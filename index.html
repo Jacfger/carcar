@@ -43,6 +43,8 @@
     .btn.primary { background: #e94560; border-color: #e94560; color: #fff; }
     .btn.primary:hover { background: #c73652; }
     .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn.pane-toggle         { font-size: 11px; padding: 3px 10px; opacity: 0.38; }
+    .btn.pane-toggle.on      { opacity: 1; }
 
     .main-layout {
       display: grid;
@@ -160,6 +162,8 @@
       <option value="chicane">Chicane</option>
     </select>
     <div class="spacer"></div>
+    <button class="btn pane-toggle on" id="btn-tog-graphs" title="Toggle graphs panel">Graphs</button>
+    <button class="btn pane-toggle on" id="btn-tog-code"   title="Toggle code panel">Code</button>
     <button class="btn primary" id="btn-run">&#9654; Run</button>
     <button class="btn" id="btn-reset">&#8635; Reset</button>
     <button class="btn" id="btn-add-car">+ Car</button>

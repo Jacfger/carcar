@@ -60,6 +60,11 @@ const speedValueLabel = document.getElementById('speed-value')      as HTMLSpanE
 const tabGraphs       = document.getElementById('tab-graphs')       as HTMLButtonElement
 const tabEncoder      = document.getElementById('tab-encoder')      as HTMLButtonElement
 const encoderMount    = document.getElementById('encoder-mount')    as HTMLDivElement
+const btnTogGraphs    = document.getElementById('btn-tog-graphs')   as HTMLButtonElement
+const btnTogCode      = document.getElementById('btn-tog-code')     as HTMLButtonElement
+const mainLayout      = document.querySelector('.main-layout')       as HTMLElement
+const telemetryPanel  = document.getElementById('telemetry-panel')  as HTMLElement
+const editorPanel     = document.getElementById('editor-panel')     as HTMLElement
 const encCprInput     = document.getElementById('enc-cpr')          as HTMLInputElement
 const encGearInput    = document.getElementById('enc-gear')         as HTMLInputElement
 const togEncNoise     = document.getElementById('tog-enc-noise')    as HTMLInputElement
@@ -80,6 +85,29 @@ const encoderTab     = new EncoderTab(encoderMount)
 let currentTrack: Track
 let cars: CarState[] = []
 let carOptionsList: CarOptions[] = []
+
+// ─── Panel toggle ────────────────────────────────────────────────────────────
+
+let graphsVisible = true
+let codeVisible   = true
+
+function updatePanelLayout(): void {
+  const showRight = graphsVisible || codeVisible
+  mainLayout.style.gridTemplateColumns = showRight ? '1fr 280px' : '1fr'
+  mainLayout.style.gridTemplateRows    = (graphsVisible && codeVisible) ? '1fr 260px' : '1fr'
+
+  telemetryPanel.style.display = graphsVisible ? 'flex' : 'none'
+  editorPanel.style.display    = codeVisible   ? 'flex' : 'none'
+
+  // When only one right panel is visible, let it span the full column height
+  telemetryPanel.style.gridRow = (graphsVisible && !codeVisible) ? '1 / -1' : ''
+  editorPanel.style.gridRow    = (codeVisible && !graphsVisible) ? '1 / -1' : ''
+
+  btnTogGraphs.classList.toggle('on', graphsVisible)
+  btnTogCode.classList.toggle('on', codeVisible)
+
+  renderer.resize()
+}
 
 // ─── Track & car management ───────────────────────────────────────────────────
 
@@ -281,6 +309,9 @@ btnAddCar.addEventListener('click', () => {
 })
 
 trackSelect.addEventListener('change', () => { stopSim(); rebuildScene() })
+
+btnTogGraphs.addEventListener('click', () => { graphsVisible = !graphsVisible; updatePanelLayout() })
+btnTogCode.addEventListener('click',   () => { codeVisible   = !codeVisible;   updatePanelLayout() })
 
 speedControl.addEventListener('input', () => {
   speedValueLabel.textContent = `${speedControl.value}%`
