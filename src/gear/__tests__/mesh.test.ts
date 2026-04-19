@@ -2,6 +2,38 @@ import { describe, expect, it } from 'vitest'
 import { createInternalGear, createSpurGear } from '../gear'
 import { calculateMesh, createGearPair } from '../mesh'
 
+function parseSvgPathTokens(pathData: string): string[] {
+  return pathData.trim().split(/\s+/)
+}
+
+function getSubpathMovePoints(pathData: string): Array<{ x: number; y: number }> {
+  const tokens = parseSvgPathTokens(pathData)
+  const movePoints: Array<{ x: number; y: number }> = []
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (tokens[i] === 'M') {
+      movePoints.push({ x: Number(tokens[i + 1]), y: Number(tokens[i + 2]) })
+    }
+  }
+
+  return movePoints
+}
+
+function rotateThenTranslate(
+  point: { x: number; y: number },
+  rotationDeg: number,
+  tx: number,
+  ty: number,
+): { x: number; y: number } {
+  const radians = (rotationDeg * Math.PI) / 180
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
+  return {
+    x: point.x * cos - point.y * sin + tx,
+    y: point.x * sin + point.y * cos + ty,
+  }
+}
+
 describe('mesh calculations', () => {
   it('computes external pair center distance', () => {
     const a = createSpurGear({ module: 3, teeth: 20, pressureAngle: 20 })
@@ -41,16 +73,31 @@ describe('mesh calculations', () => {
   })
 
   it('returns svg path with positioned driven gear', () => {
-    const a = createSpurGear({ module: 3, teeth: 20, pressureAngle: 20 })
-    const b = createSpurGear({ module: 3, teeth: 40, pressureAngle: 20 })
-    const pair = calculateMesh(a, b, { backlash: 0 })
+    const pinion = createSpurGear({ module: 3, teeth: 20, pressureAngle: 20 })
+    const driven = createSpurGear({ module: 3, teeth: 40, pressureAngle: 20 })
+    const pair = calculateMesh(pinion, driven, { backlash: 0 })
 
-    const rawUnpositionedConcat = `${a.toSvgPath()} ${b.toSvgPath()}`
-    const path = pair.toSvgPath()
+    const pinionPath = pinion.toSvgPath()
+    const rawDrivenPath = driven.toSvgPath()
+    const rawUnpositionedConcat = `${pinionPath} ${rawDrivenPath}`
+    const pairPath = pair.toSvgPath()
+    const pairMovePoints = getSubpathMovePoints(pairPath)
+    const pinionMovePoints = getSubpathMovePoints(pinionPath)
+    const drivenMovePoints = getSubpathMovePoints(rawDrivenPath)
+    const positionedDriven = pair.getPositionedGear()
+    const transformedDrivenFirstMove = rotateThenTranslate(
+      drivenMovePoints[0],
+      positionedDriven.rotation,
+      positionedDriven.x,
+      positionedDriven.y,
+    )
 
-    expect(typeof path).toBe('string')
-    expect(path).not.toBe(rawUnpositionedConcat)
-    expect(path.match(/\bM\b/g)?.length ?? 0).toBeGreaterThanOrEqual(2)
+    expect(typeof pairPath).toBe('string')
+    expect(pairPath).not.toBe(rawUnpositionedConcat)
+    expect(pairMovePoints.length).toBeGreaterThanOrEqual(2)
+    expect(pairMovePoints[0]).toEqual(pinionMovePoints[0])
+    expect(pairMovePoints[1].x).toBeCloseTo(transformedDrivenFirstMove.x, 3)
+    expect(pairMovePoints[1].y).toBeCloseTo(transformedDrivenFirstMove.y, 3)
   })
 
   it('throws when centerDistance is below nominal and implies negative backlash', () => {
