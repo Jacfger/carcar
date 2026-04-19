@@ -21,10 +21,7 @@ export class EncoderTab {
   private metersPerTick = 0   // updated each tick from encoder params
 
   private tickReadout!:  HTMLDivElement
-  private leftBtn!:      HTMLButtonElement
-  private rightBtn!:     HTMLButtonElement
   private unitBtn!:      HTMLButtonElement
-  private showLeft       = true
   private showMeters     = false   // false = ticks/s, true = m/s
   private smoothWin      = 10      // moving-average window (samples)
   private displayMaxAbs  = 10      // lerped y-scale ceiling (ticks/s or m/s)
@@ -32,8 +29,9 @@ export class EncoderTab {
   private running = false
   private rafId   = 0
 
-  private curAngle = 0
-  private curCpr   = 12
+  private curAngleL = 0
+  private curAngleR = 0
+  private curCpr    = 12
 
   private prevTicksL   = 0
   private prevTicksR   = 0
@@ -50,24 +48,17 @@ export class EncoderTab {
 
     const discWrap = document.createElement('div')
     discWrap.style.cssText =
-      'flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#12122a'
+      'flex:1;min-height:0;overflow:hidden;background:#12122a'
     this.mount.appendChild(discWrap)
 
     this.discCanvas = document.createElement('canvas')
-    this.discCanvas.style.cssText = 'display:block'
+    this.discCanvas.style.cssText = 'display:block;width:100%;height:100%'
     discWrap.appendChild(this.discCanvas)
     this.discCtx = this.discCanvas.getContext('2d')!
 
     const btnRow = document.createElement('div')
     btnRow.style.cssText =
       'display:flex;gap:4px;padding:4px 8px;flex-shrink:0;background:#16213e;align-items:center'
-
-    this.leftBtn  = document.createElement('button')
-    this.rightBtn = document.createElement('button')
-    this.leftBtn.textContent  = 'Left'
-    this.rightBtn.textContent = 'Right'
-    this.leftBtn.addEventListener('click',  () => { this.showLeft = true;  this._refreshBtns() })
-    this.rightBtn.addEventListener('click', () => { this.showLeft = false; this._refreshBtns() })
 
     const spacer = document.createElement('div')
     spacer.style.cssText = 'flex:1'
@@ -95,7 +86,7 @@ export class EncoderTab {
       smoothLabel.textContent = `avg: ${this.smoothWin}`
     })
 
-    btnRow.append(this.leftBtn, this.rightBtn, spacer, smoothLabel, smoothSlider, this.unitBtn)
+    btnRow.append(spacer, smoothLabel, smoothSlider, this.unitBtn)
     this.mount.appendChild(btnRow)
     this._refreshBtns()
 
@@ -121,12 +112,9 @@ export class EncoderTab {
   }
 
   private _refreshBtns(): void {
-    const on  = 'background:#1a4a80;color:#e0e0e0;border-color:#1a4a80'
-    const off = 'background:#0f3460;color:#a0b0c0;border-color:#0f3460'
-    this.leftBtn.style.cssText  = `font-size:10px;padding:2px 10px;border-radius:3px;cursor:pointer;border:1px solid;${this.showLeft  ? on : off}`
-    this.rightBtn.style.cssText = `font-size:10px;padding:2px 10px;border-radius:3px;cursor:pointer;border:1px solid;${!this.showLeft ? on : off}`
-    this.unitBtn.textContent    = this.showMeters ? 'm/s' : 'ticks/s'
-    this.unitBtn.style.cssText  = `font-size:10px;padding:2px 10px;border-radius:3px;cursor:pointer;border:1px solid;${on}`
+    const on = 'background:#1a4a80;color:#e0e0e0;border-color:#1a4a80'
+    this.unitBtn.textContent   = this.showMeters ? 'm/s' : 'ticks/s'
+    this.unitBtn.style.cssText = `font-size:10px;padding:2px 10px;border-radius:3px;cursor:pointer;border:1px solid;${on}`
   }
 
   // ── Public API ────────────────────────────────────────────────────────────────
@@ -136,12 +124,11 @@ export class EncoderTab {
     const dt  = this.lastUpdateMs >= 0 ? (now - this.lastUpdateMs) / 1000 : 0
     this.lastUpdateMs = now
 
-    const state = this.showLeft ? stateL : stateR
-    this.curAngle    = state.angle
-    this.curCpr      = state.params.cpr
+    this.curAngleL = stateL.angle
+    this.curAngleR = stateR.angle
+    this.curCpr    = stateL.params.cpr
 
-
-    this.waveBuffer.push({ a: state.channelA, b: state.channelB })
+    this.waveBuffer.push({ a: stateL.channelA, b: stateL.channelB })
     if (this.waveBuffer.length > WAVE_LEN) this.waveBuffer.shift()
 
     if (dt > 0) {
@@ -179,31 +166,54 @@ export class EncoderTab {
     this.rafId = requestAnimationFrame(() => this._frame())
 
     const wrap = this.discCanvas.parentElement!
-    const size = Math.min(wrap.offsetWidth, wrap.offsetHeight)
-    if (size > 0) {
-      if (this.discCanvas.width !== size || this.discCanvas.height !== size) {
-        this.discCanvas.width  = size
-        this.discCanvas.height = size
+    const dpr  = window.devicePixelRatio || 1
+    const W    = wrap.offsetWidth  * dpr
+    const H    = wrap.offsetHeight * dpr
+    if (W > 0 && H > 0) {
+      if (this.discCanvas.width !== W || this.discCanvas.height !== H) {
+        this.discCanvas.width  = W
+        this.discCanvas.height = H
       }
-      this._drawDisc(size)
+      this._drawDiscs(W, H)
     }
     this._drawWaveform()
     this._drawVelocity()
   }
 
-  // ── 2D disc ───────────────────────────────────────────────────────────────────
+  // ── 2D dual-disc ─────────────────────────────────────────────────────────────
 
-  private _drawDisc(S: number): void {
-    const ctx   = this.discCtx
-    const cx    = S / 2, cy = S / 2
-    const R     = S * 0.42
+  private _drawDiscs(W: number, H: number): void {
+    const ctx = this.discCtx
+    ctx.fillStyle = '#12122a'
+    ctx.fillRect(0, 0, W, H)
+
+    const R   = Math.min(H * 0.38, W * 0.20)
+    const cy  = H / 2
+    const gap = R * 0.25
+    const cxL = W / 2 - gap - R
+    const cxR = W / 2 + gap + R
+
+    this._drawOneDisc(ctx, cxL, cy, R, this.curAngleL)
+    this._drawOneDisc(ctx, cxR, cy, R, this.curAngleR)
+
+    // Labels
+    ctx.font = `bold ${Math.round(R * 0.20)}px monospace`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+    ctx.fillStyle = '#00d8d8'
+    ctx.fillText('L', cxL, cy + R + R * 0.12)
+    ctx.fillStyle = '#d800d8'
+    ctx.fillText('R', cxR, cy + R + R * 0.12)
+  }
+
+  private _drawOneDisc(
+    ctx: CanvasRenderingContext2D,
+    cx: number, cy: number, R: number, angle: number,
+  ): void {
     const Rslot = R * 0.88
     const Ri    = R * 0.30
     const Rh    = R * 0.09
     const cpr   = this.curCpr
-    const angle = this.curAngle
-
-    ctx.clearRect(0, 0, S, S)
+    const S     = R * 2   // reference size for sensor dot scaling
 
     const grd = ctx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R * 1.1)
     grd.addColorStop(0, 'rgba(30,50,120,0)')
@@ -231,8 +241,8 @@ export class EncoderTab {
     }
 
     const Rmid = (Rslot + Ri) * 0.5
-    this._drawSensor(ctx, cx, cy, SENSOR_A_ANGLE, Rmid, S, '#2255ff', '#4a80ff', this._discSensorHigh(SENSOR_A_ANGLE), 'A')
-    this._drawSensor(ctx, cx, cy, SENSOR_B_ANGLE, Rmid, S, '#cc2222', '#ff5555', this._discSensorHigh(SENSOR_B_ANGLE), 'B')
+    this._drawSensor(ctx, cx, cy, SENSOR_A_ANGLE, Rmid, S, '#2255ff', '#4a80ff', this._discSensorHigh(SENSOR_A_ANGLE, angle), 'A')
+    this._drawSensor(ctx, cx, cy, SENSOR_B_ANGLE, Rmid, S, '#cc2222', '#ff5555', this._discSensorHigh(SENSOR_B_ANGLE, angle), 'B')
 
     ctx.fillStyle = '#0a0a20'
     ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, Math.PI * 2); ctx.fill()
@@ -276,9 +286,9 @@ export class EncoderTab {
     ctx.fillText(label, lx, ly)
   }
 
-  // Sensor HIGH if a slot is visually under worldAngle — must match slot half-width in _drawDisc
-  private _discSensorHigh(worldAngle: number): boolean {
-    const local  = ((worldAngle - this.curAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)
+  // Sensor HIGH if a slot is visually under worldAngle — must match slot half-width in _drawOneDisc
+  private _discSensorHigh(worldAngle: number, discAngle: number): boolean {
+    const local  = ((worldAngle - discAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)
     const period = Math.PI * 2 / this.curCpr
     const phase  = local % period
     const halfW  = Math.PI / this.curCpr * 0.5
