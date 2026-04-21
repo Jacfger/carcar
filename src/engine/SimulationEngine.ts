@@ -11,9 +11,9 @@ import { weightedCentroid } from '../simulation/Sensors'
 import { makeOvalTrack } from '../track/presets/oval'
 import { makeFigure8Track } from '../track/presets/figure8'
 import { makeChicaneTrack } from '../track/presets/chicane'
-import { EncoderTab } from '../render/EncoderTab'
 import { PHYSICS_HZ, ENCODER_DEFAULTS, WHEEL_RADIUS_M } from '../constants'
 import type { Track } from '../track/Track'
+import type { EncoderUpdateFn } from '../components/EncoderView'
 
 const MAX_CARS = 4
 const DT = 1 / PHYSICS_HZ
@@ -35,7 +35,6 @@ export class SimulationEngine {
   private trackRenderer = new TrackRenderer(1, 1)
   private renderer: Renderer | null = null
   private telemetry: TelemetryData = createTelemetry()
-  private encoderTab: EncoderTab | null = null
 
   private currentTrack!: Track
   private cars: CarState[] = []
@@ -49,6 +48,7 @@ export class SimulationEngine {
   private trackCanvas: HTMLCanvasElement | null = null
   private telemetryCanvas: HTMLCanvasElement | null = null
   private encoderVisible = false
+  private encoderUpdateRef: { current: EncoderUpdateFn | null } | null = null
 
   settings: SimSettings = {
     trackName: 'oval',
@@ -84,16 +84,13 @@ export class SimulationEngine {
     this.telemetryCanvas = canvas
   }
 
-  setEncoderMount(mount: HTMLElement): void {
-    this.encoderTab = new EncoderTab(mount)
+  setEncoderUpdateRef(ref: { current: EncoderUpdateFn | null }): void {
+    this.encoderUpdateRef = ref
   }
 
   setEncoderVisible(visible: boolean): void {
     this.encoderVisible = visible
-    if (visible) {
-      this.encoderTab?.start()
-    } else {
-      this.encoderTab?.stop()
+    if (!visible) {
       // Telemetry canvas is visible again — refresh its pixel buffer dimensions
       this.renderer?.resize()
     }
@@ -263,7 +260,7 @@ export class SimulationEngine {
       }
 
       if (this.cars.length > 0 && this.encoderVisible) {
-        this.encoderTab?.update(this.cars[0].encoderL, this.cars[0].encoderR)
+        this.encoderUpdateRef?.current?.(this.cars[0].encoderL, this.cars[0].encoderR)
       }
 
       this.drawFrame()
@@ -290,6 +287,5 @@ export class SimulationEngine {
 
   destroy(): void {
     this.stop()
-    this.encoderTab?.destroy()
   }
 }

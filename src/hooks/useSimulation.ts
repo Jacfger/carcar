@@ -2,6 +2,7 @@ import { useRef, useEffect, type RefObject } from 'react'
 import { SimulationEngine, type SimSettings } from '../engine/SimulationEngine'
 import { compileUserCode } from '../editor/Sandbox'
 import { DEFAULT_PID_CODE } from '../editor/defaultCode'
+import type { EncoderUpdateFn } from '../components/EncoderView'
 
 export function useSimulation(
   settings: SimSettings,
@@ -11,9 +12,9 @@ export function useSimulation(
     onCarCountChange: (count: number) => void
   },
   refs: {
-    trackCanvas: RefObject<HTMLCanvasElement | null>
+    trackCanvas:    RefObject<HTMLCanvasElement | null>
     telemetryCanvas: RefObject<HTMLCanvasElement | null>
-    encoderMount: RefObject<HTMLDivElement | null>
+    encoderUpdate:  RefObject<EncoderUpdateFn | null>
   },
 ) {
   const engineRef = useRef<SimulationEngine | null>(null)
@@ -36,7 +37,7 @@ export function useSimulation(
     })
     engine.setTrackCanvas(tc)
     engine.setTelemetryCanvas(tel)
-    if (refs.encoderMount.current) engine.setEncoderMount(refs.encoderMount.current)
+    engine.setEncoderUpdateRef(refs.encoderUpdate)
 
     engine.init()
     compileUserCode(DEFAULT_PID_CODE)
