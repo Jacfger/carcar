@@ -58,3 +58,11 @@ export const CASTER_NOISE_SPEED = 0.4  // frequency of Perlin-like noise
 // ─── Telemetry ────────────────────────────────────────────────────────────────
 
 export const TELEMETRY_SAMPLES = 300   // ring-buffer length
+
+// ─── Encoder ─────────────────────────────────────────────────────────────────
+
+export const ENCODER_DEFAULTS = {
+  cpr:       20,    // pulses per encoder shaft revolution
+  gearRatio:  3.0,  // encoder shaft turns per wheel turn
+  noiseRate:  0.02, // probability of dropping a tick per edge (when variance on)
+} as const

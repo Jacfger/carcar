@@ -43,6 +43,8 @@
     .btn.primary { background: #e94560; border-color: #e94560; color: #fff; }
     .btn.primary:hover { background: #c73652; }
     .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn.pane-toggle         { font-size: 11px; padding: 3px 10px; opacity: 0.38; }
+    .btn.pane-toggle.on      { opacity: 1; }
 
     .main-layout {
       display: grid;
@@ -160,6 +162,8 @@
       <option value="chicane">Chicane</option>
     </select>
     <div class="spacer"></div>
+    <button class="btn pane-toggle on" id="btn-tog-graphs" title="Toggle graphs panel">Graphs</button>
+    <button class="btn pane-toggle on" id="btn-tog-code"   title="Toggle code panel">Code</button>
     <button class="btn primary" id="btn-run">&#9654; Run</button>
     <button class="btn" id="btn-reset">&#8635; Reset</button>
     <button class="btn" id="btn-add-car">+ Car</button>
@@ -173,8 +177,13 @@
     </div>
 
     <div class="panel" id="telemetry-panel">
-      <div class="panel-header">Telemetry</div>
+      <div class="panel-header" style="display:flex;align-items:center;padding:0 0 0 10px;gap:0">
+        <span style="font-size:11px;font-weight:600;color:#7090b0;text-transform:uppercase;letter-spacing:0.8px;margin-right:12px">Telemetry</span>
+        <button id="tab-graphs"  style="font-size:10px;padding:4px 10px;border:none;border-bottom:2px solid #e94560;background:transparent;color:#e94560;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px">Graphs</button>
+        <button id="tab-encoder" style="font-size:10px;padding:4px 10px;border:none;border-bottom:2px solid transparent;background:transparent;color:#7090b0;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px">Encoder</button>
+      </div>
       <canvas id="telemetry-canvas"></canvas>
+      <div id="encoder-mount" style="display:none;flex:1;flex-direction:column;overflow:hidden;"></div>
       <div class="telemetry-toggles">
         <label class="toggle-row">
           <input type="checkbox" id="tog-variance" checked />
@@ -197,6 +206,18 @@
           <input type="range" id="speed-control" min="5" max="100" value="60" step="5" style="flex:1;accent-color:#e94560" />
           <span id="speed-value" style="font-size:11px;color:#e94560;min-width:32px;text-align:right">60%</span>
         </div>
+        <div class="toggle-row" style="gap:6px">
+          <span class="toggle-label">Encoder CPR</span>
+          <input type="number" id="enc-cpr" value="20" min="1" max="128" step="1"
+            style="width:46px;background:#0f3460;color:#e0e0e0;border:1px solid #1a4a80;border-radius:3px;padding:2px 4px;font-size:11px" />
+          <span class="toggle-label" style="margin-left:6px">Gear ratio</span>
+          <input type="number" id="enc-gear" value="3.0" min="0.1" max="20" step="0.1"
+            style="width:40px;background:#0f3460;color:#e0e0e0;border:1px solid #1a4a80;border-radius:3px;padding:2px 4px;font-size:11px" />
+        </div>
+        <label class="toggle-row">
+          <input type="checkbox" id="tog-enc-noise" />
+          <span class="toggle-label">Encoder noise</span>
+        </label>
       </div>
     </div>
 

@@ -5,6 +5,7 @@ import { createBattery, stepBattery, resetBattery, type BatteryState } from './B
 import { ballCasterPerturbation } from './BallCaster'
 import { readSensors } from './Sensors'
 import type { TrackRenderer } from '../track/TrackRenderer'
+import { createEncoder, resetEncoder, stepEncoder, type EncoderState, type EncoderParams } from './Encoder'
 
 export interface CarOptions {
   startX:          number
@@ -14,6 +15,7 @@ export interface CarOptions {
   batteryEnabled:  boolean
   casterEnabled:   boolean
   colorIndex:      number
+  encoderParams:   EncoderParams   // NEW
 }
 
 export interface CarState {
@@ -47,6 +49,10 @@ export interface CarState {
 
   // Visual identity
   colorIndex: number
+
+  // Encoders
+  encoderL: EncoderState   // NEW
+  encoderR: EncoderState   // NEW
 }
 
 // ─── Colour palette for multi-car ─────────────────────────────────────────────
@@ -68,6 +74,8 @@ export function createCar(opts: CarOptions, body: Matter.Body): CarState {
     time: 0,
     body,
     colorIndex: opts.colorIndex,
+    encoderL: createEncoder(opts.encoderParams),   // NEW
+    encoderR: createEncoder(opts.encoderParams),   // NEW
   }
 }
 
@@ -82,6 +90,8 @@ export function resetCar(car: CarState, opts: CarOptions): void {
   car.sensors.fill(0)
   car.pwmL = 0; car.pwmR = 0
   car.time = 0
+  resetEncoder(car.encoderL)   // NEW
+  resetEncoder(car.encoderR)   // NEW
   Matter.Body.setPosition(car.body, { x: opts.startX, y: opts.startY })
   Matter.Body.setAngle(car.body, opts.startAngle)
 }
@@ -115,6 +125,10 @@ export function stepCarModel(
   // 3. Motor model → wheel linear speeds (m/s)
   const vL_m = stepMotor(car.motorL, car.pwmL, voltage, dt, WHEEL_RADIUS_M)
   const vR_m = stepMotor(car.motorR, car.pwmR, voltage, dt, WHEEL_RADIUS_M)
+
+  // 3b. Encoder step — motor.omega was just updated by stepMotor
+  stepEncoder(car.encoderL, car.motorL, dt)   // NEW
+  stepEncoder(car.encoderR, car.motorR, dt)   // NEW
 
   // 4. Differential drive kinematics
   const v_m = (vL_m + vR_m) / 2          // forward speed (m/s)

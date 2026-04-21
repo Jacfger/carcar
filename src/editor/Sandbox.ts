@@ -6,9 +6,11 @@ export interface UserOutput {
 }
 
 export interface SandboxCarState {
-  voltage:   number
-  speed:     number   // m/s, approximate
-  time:      number
+  voltage:  number
+  speed:    number   // m/s, approximate
+  time:     number
+  ticksL:   number   // accumulated signed tick count, left wheel encoder
+  ticksR:   number   // accumulated signed tick count, right wheel encoder
 }
 
 type UserFn = (sensors: number[], dt: number, car: SandboxCarState) => UserOutput

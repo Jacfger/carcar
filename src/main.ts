@@ -12,7 +12,8 @@ import { makeOvalTrack }                       from './track/presets/oval'
 import { makeFigure8Track }                    from './track/presets/figure8'
 import { makeChicaneTrack }                    from './track/presets/chicane'
 import { DEFAULT_PID_CODE }                    from './editor/defaultCode'
-import { PHYSICS_HZ }                          from './constants'
+import { EncoderTab }                          from './render/EncoderTab'
+import { PHYSICS_HZ, ENCODER_DEFAULTS, WHEEL_RADIUS_M } from './constants'
 import type { Track }                          from './track/Track'
 
 const MAX_CARS = 4
@@ -56,6 +57,17 @@ const togCaster       = document.getElementById('tog-caster')       as HTMLInput
 const togSensors      = document.getElementById('tog-sensors')      as HTMLInputElement
 const speedControl    = document.getElementById('speed-control')    as HTMLInputElement
 const speedValueLabel = document.getElementById('speed-value')      as HTMLSpanElement
+const tabGraphs       = document.getElementById('tab-graphs')       as HTMLButtonElement
+const tabEncoder      = document.getElementById('tab-encoder')      as HTMLButtonElement
+const encoderMount    = document.getElementById('encoder-mount')    as HTMLDivElement
+const btnTogGraphs    = document.getElementById('btn-tog-graphs')   as HTMLButtonElement
+const btnTogCode      = document.getElementById('btn-tog-code')     as HTMLButtonElement
+const mainLayout      = document.querySelector('.main-layout')       as HTMLElement
+const telemetryPanel  = document.getElementById('telemetry-panel')  as HTMLElement
+const editorPanel     = document.getElementById('editor-panel')     as HTMLElement
+const encCprInput     = document.getElementById('enc-cpr')          as HTMLInputElement
+const encGearInput    = document.getElementById('enc-gear')         as HTMLInputElement
+const togEncNoise     = document.getElementById('tog-enc-noise')    as HTMLInputElement
 
 // ─── Simulation state ─────────────────────────────────────────────────────────
 let running       = false
@@ -68,10 +80,34 @@ const physics        = new PhysicsWorld()
 const trackRenderer  = new TrackRenderer(1, 1)
 const renderer       = new Renderer(trackCanvas, telemetryCanvas)
 const telemetry      = createTelemetry()
+const encoderTab     = new EncoderTab(encoderMount)
 
 let currentTrack: Track
 let cars: CarState[] = []
 let carOptionsList: CarOptions[] = []
+
+// ─── Panel toggle ────────────────────────────────────────────────────────────
+
+let graphsVisible = true
+let codeVisible   = true
+
+function updatePanelLayout(): void {
+  const showRight = graphsVisible || codeVisible
+  mainLayout.style.gridTemplateColumns = showRight ? '1fr 280px' : '1fr'
+  mainLayout.style.gridTemplateRows    = (graphsVisible && codeVisible) ? '1fr 260px' : '1fr'
+
+  telemetryPanel.style.display = graphsVisible ? 'flex' : 'none'
+  editorPanel.style.display    = codeVisible   ? 'flex' : 'none'
+
+  // When only one right panel is visible, let it span the full column height
+  telemetryPanel.style.gridRow = (graphsVisible && !codeVisible) ? '1 / -1' : ''
+  editorPanel.style.gridRow    = (codeVisible && !graphsVisible) ? '1 / -1' : ''
+
+  btnTogGraphs.classList.toggle('on', graphsVisible)
+  btnTogCode.classList.toggle('on', codeVisible)
+
+  renderer.resize()
+}
 
 // ─── Track & car management ───────────────────────────────────────────────────
 
@@ -89,6 +125,7 @@ function makeCarOptions(index: number): CarOptions {
   // Offset start position slightly per car so they don't stack exactly
   const offsetX =  Math.sin(index * 1.2) * 20
   const offsetY = -index * 30
+  const noiseOn  = togEncNoise.checked && togVariance.checked
   return {
     startX:          currentTrack.startX + offsetX,
     startY:          currentTrack.startY + offsetY,
@@ -97,6 +134,12 @@ function makeCarOptions(index: number): CarOptions {
     batteryEnabled:  togBattery.checked,
     casterEnabled:   togCaster.checked,
     colorIndex:      index,
+    encoderParams: {
+      cpr:         parseInt(encCprInput.value)    || ENCODER_DEFAULTS.cpr,
+      gearRatio:   parseFloat(encGearInput.value) || ENCODER_DEFAULTS.gearRatio,
+      wheelRadius: WHEEL_RADIUS_M,
+      noiseRate:   noiseOn ? ENCODER_DEFAULTS.noiseRate : 0,
+    },
   }
 }
 
@@ -188,6 +231,8 @@ function startSim(): void {
             voltage: car.battery.voltage,
             speed:   Math.hypot(car.vx, car.vy) / 1600,
             time:    car.time,
+            ticksL:  car.encoderL.ticks,
+            ticksR:  car.encoderR.ticks,
           },
         )
 
@@ -226,6 +271,10 @@ function startSim(): void {
       }
     }
 
+    if (cars.length > 0 && encoderMount.style.display !== 'none') {
+      encoderTab.update(cars[0].encoderL, cars[0].encoderR)
+    }
+
     renderer.drawFrame(trackRenderer, cars, telemetry, togSensors.checked)
   }
 
@@ -261,11 +310,39 @@ btnAddCar.addEventListener('click', () => {
 
 trackSelect.addEventListener('change', () => { stopSim(); rebuildScene() })
 
+btnTogGraphs.addEventListener('click', () => { graphsVisible = !graphsVisible; updatePanelLayout() })
+btnTogCode.addEventListener('click',   () => { codeVisible   = !codeVisible;   updatePanelLayout() })
+
 speedControl.addEventListener('input', () => {
   speedValueLabel.textContent = `${speedControl.value}%`
 })
 
 window.addEventListener('resize', () => { stopSim(); rebuildScene() })
+
+// ─── Telemetry tab switching ──────────────────────────────────────────────────
+
+function showGraphsTab(): void {
+  telemetryCanvas.style.display = 'block'
+  encoderMount.style.display    = 'none'
+  encoderTab.stop()
+  tabGraphs.style.color         = '#e94560'
+  tabGraphs.style.borderBottom  = '2px solid #e94560'
+  tabEncoder.style.color        = '#7090b0'
+  tabEncoder.style.borderBottom = '2px solid transparent'
+}
+
+function showEncoderTab(): void {
+  telemetryCanvas.style.display = 'none'
+  encoderMount.style.display    = 'flex'
+  encoderTab.start()
+  tabEncoder.style.color        = '#e94560'
+  tabEncoder.style.borderBottom = '2px solid #e94560'
+  tabGraphs.style.color         = '#7090b0'
+  tabGraphs.style.borderBottom  = '2px solid transparent'
+}
+
+tabGraphs.addEventListener('click',  showGraphsTab)
+tabEncoder.addEventListener('click', showEncoderTab)
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
