@@ -67,8 +67,11 @@ export function drawTelemetry(
   voltage_min: number,
   voltage_max: number,
 ): void {
-  const W = canvas.width
-  const H = canvas.height
+  // canvas.width/height are physical pixels; context is already scaled by DPR,
+  // so all drawing coordinates must be in CSS pixels.
+  const pr = window.devicePixelRatio || 1
+  const W = canvas.width / pr
+  const H = canvas.height / pr
   const rowH = H / 3
 
   ctx.clearRect(0, 0, W, H)

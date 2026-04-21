@@ -22,14 +22,18 @@ export class Renderer {
     const pr = window.devicePixelRatio || 1
 
     const tc = this.trackCanvas
-    tc.width  = tc.clientWidth  * pr
-    tc.height = tc.clientHeight * pr
-    this.trackCtx.scale(pr, pr)
+    if (tc.clientWidth > 0 && tc.clientHeight > 0) {
+      tc.width  = tc.clientWidth  * pr
+      tc.height = tc.clientHeight * pr
+      this.trackCtx.scale(pr, pr)
+    }
 
     const tel = this.telemetryCanvas
-    tel.width  = tel.clientWidth  * pr
-    tel.height = tel.clientHeight * pr
-    this.telemetryCtx.scale(pr, pr)
+    if (tel.clientWidth > 0 && tel.clientHeight > 0) {
+      tel.width  = tel.clientWidth  * pr
+      tel.height = tel.clientHeight * pr
+      this.telemetryCtx.scale(pr, pr)
+    }
   }
 
   /** Draw all cars and telemetry for car[0] (primary car). */

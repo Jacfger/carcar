@@ -97,16 +97,18 @@ export class EncoderTab {
     this.tickReadout.textContent = 'L: +000000  R: +000000'
     this.mount.appendChild(this.tickReadout)
 
+    const dpr = window.devicePixelRatio || 1
+
     // A/B square wave
     this.waveCanvas = document.createElement('canvas')
-    this.waveCanvas.height        = 80
+    this.waveCanvas.height        = 80 * dpr
     this.waveCanvas.style.cssText = 'width:100%;height:80px;display:block;flex-shrink:0'
     this.mount.appendChild(this.waveCanvas)
     this.waveCtx = this.waveCanvas.getContext('2d')!
 
     // Velocity graph
     this.velCanvas = document.createElement('canvas')
-    this.velCanvas.height        = 72
+    this.velCanvas.height        = 72 * dpr
     this.velCanvas.style.cssText = 'width:100%;height:72px;display:block;flex-shrink:0'
     this.mount.appendChild(this.velCanvas)
     this.velCtx = this.velCanvas.getContext('2d')!
@@ -160,6 +162,11 @@ export class EncoderTab {
   stop(): void {
     this.running = false
     cancelAnimationFrame(this.rafId)
+  }
+
+  destroy(): void {
+    this.stop()
+    this.mount.innerHTML = ''
   }
 
   // ── Render loop ───────────────────────────────────────────────────────────────
@@ -303,7 +310,7 @@ export class EncoderTab {
   private _drawWaveform(): void {
     const dpr = window.devicePixelRatio || 1
     const W   = this.waveCanvas.offsetWidth * dpr
-    const H   = this.waveCanvas.height * dpr
+    const H   = this.waveCanvas.height
     if (this.waveCanvas.width !== W) this.waveCanvas.width = W
 
     const ctx = this.waveCtx
@@ -374,7 +381,7 @@ export class EncoderTab {
   private _drawVelocity(): void {
     const dpr   = window.devicePixelRatio || 1
     const W     = this.velCanvas.offsetWidth * dpr
-    const H     = this.velCanvas.height * dpr
+    const H     = this.velCanvas.height
     if (this.velCanvas.width !== W) this.velCanvas.width = W
 
     const ctx   = this.velCtx
