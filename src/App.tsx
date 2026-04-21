@@ -3,7 +3,7 @@ import { Header } from './components/Header'
 import { TrackPanel } from './components/TrackPanel'
 import { TelemetryPanel } from './components/TelemetryPanel'
 import { TelemetryCanvas } from './components/TelemetryCanvas'
-import { EncoderView } from './components/EncoderView'
+import { EncoderView, type EncoderUpdateFn } from './components/EncoderView'
 import { EditorPanel } from './components/EditorPanel'
 import { SimulationToggles } from './components/SimulationToggles'
 import { useSimulation } from './hooks/useSimulation'
@@ -89,9 +89,10 @@ export function App() {
   const codeRef = useRef(DEFAULT_PID_CODE)
 
   // DOM refs — set during commit phase, before any useEffect runs
-  const trackCanvasRef = useRef<HTMLCanvasElement>(null)
+  const trackCanvasRef     = useRef<HTMLCanvasElement>(null)
   const telemetryCanvasRef = useRef<HTMLCanvasElement>(null)
-  const encoderMountRef = useRef<HTMLDivElement>(null)
+  // Shared callback ref: EncoderView writes its update fn here; engine calls it each frame
+  const encoderUpdateRef   = useRef<EncoderUpdateFn | null>(null)
 
   const simSettings: SimSettings = useMemo(() => ({
     trackName: state.trackName,
@@ -116,9 +117,9 @@ export function App() {
   }), [])
 
   const { engineRef } = useSimulation(simSettings, callbacks, {
-    trackCanvas: trackCanvasRef,
+    trackCanvas:     trackCanvasRef,
     telemetryCanvas: telemetryCanvasRef,
-    encoderMount: encoderMountRef,
+    encoderUpdate:   encoderUpdateRef,
   })
 
   // Track change
@@ -210,7 +211,7 @@ export function App() {
             visible={state.activeTab === 'graphs'}
           />
           <EncoderView
-            mountRef={encoderMountRef}
+            updateRef={encoderUpdateRef}
             visible={state.activeTab === 'encoder'}
           />
           <SimulationToggles
