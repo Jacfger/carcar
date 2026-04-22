@@ -94,8 +94,8 @@ export class SimulationEngine {
   setEncoderVisible(visible: boolean): void {
     this.encoderVisible = visible
     if (!visible) {
-      // Telemetry canvas is visible again — refresh its pixel buffer dimensions
       this.renderer?.resize()
+      this.drawFrame()
     }
   }
 
