@@ -23,16 +23,20 @@ export class Renderer {
     const pr = window.devicePixelRatio || 1
 
     const tc = this.trackCanvas
-    if (tc.clientWidth > 0 && tc.clientHeight > 0) {
-      tc.width  = tc.clientWidth  * pr
-      tc.height = tc.clientHeight * pr
+    const newTcW = Math.round(tc.clientWidth  * pr)
+    const newTcH = Math.round(tc.clientHeight * pr)
+    if (newTcW > 0 && newTcH > 0 && (tc.width !== newTcW || tc.height !== newTcH)) {
+      tc.width  = newTcW
+      tc.height = newTcH
       this.trackCtx.scale(pr, pr)
     }
 
     const tel = this.telemetryCanvas
-    if (tel.clientWidth > 0 && tel.clientHeight > 0) {
-      tel.width  = tel.clientWidth  * pr
-      tel.height = tel.clientHeight * pr
+    const newTelW = Math.round(tel.clientWidth  * pr)
+    const newTelH = Math.round(tel.clientHeight * pr)
+    if (newTelW > 0 && newTelH > 0 && (tel.width !== newTelW || tel.height !== newTelH)) {
+      tel.width  = newTelW
+      tel.height = newTelH
       this.telemetryCtx.scale(pr, pr)
     }
   }

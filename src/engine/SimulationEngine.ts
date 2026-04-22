@@ -94,8 +94,8 @@ export class SimulationEngine {
   setEncoderVisible(visible: boolean): void {
     this.encoderVisible = visible
     if (!visible) {
-      // Telemetry canvas is visible again — refresh its pixel buffer dimensions
       this.renderer?.resize()
+      this.drawFrame()
     }
   }
 
@@ -121,7 +121,7 @@ export class SimulationEngine {
     switch (this.settings.trackName) {
       case 'figure8': return makeFigure8Track(WORLD_W, WORLD_H)
       case 'chicane': return makeChicaneTrack(WORLD_W, WORLD_H)
-      default: return makeOvalTrack(WORLD_W, WORLD_H)
+      default:        return makeOvalTrack(WORLD_W, WORLD_H)
     }
   }
 
@@ -169,8 +169,8 @@ export class SimulationEngine {
 
     const pr = window.devicePixelRatio || 1
     this.trackRenderer.resize(
-      Math.round(this.trackCanvas.clientWidth * pr),
-      Math.round(this.trackCanvas.clientHeight * pr),
+      Math.round(WORLD_W * pr),
+      Math.round(WORLD_H * pr),
       this.currentTrack,
     )
 
