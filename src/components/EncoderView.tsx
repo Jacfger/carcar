@@ -261,10 +261,13 @@ export function EncoderView({ updateRef, visible }: Props) {
       ctx.textBaseline = 'top'
       ctx.fillStyle    = '#00d8d8'
       ctx.textAlign    = 'left'
-      ctx.fillText(`L ${lv.toFixed(dp)} ${unit}`, pad.left + 4 * dpr, 3 * dpr)
+      ctx.fillText(`L: ${lv.toFixed(dp)}`, pad.left + 4 * dpr, 3 * dpr)
       ctx.fillStyle    = '#d800d8'
+      ctx.textAlign    = 'left'
+      ctx.fillText(`R: ${rv.toFixed(dp)}`, W * 0.45, 3 * dpr)
+      ctx.fillStyle    = '#506080'
       ctx.textAlign    = 'right'
-      ctx.fillText(`R ${rv.toFixed(dp)} ${unit}`, W - pad.right - 4 * dpr, 3 * dpr)
+      ctx.fillText('Velocity', W - pad.right - 4 * dpr, 3 * dpr)
 
       ctx.fillStyle    = '#3a4a6a'
       ctx.textAlign    = 'right'

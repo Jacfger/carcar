@@ -10,6 +10,7 @@ import type { Track } from './Track'
 export class TrackRenderer {
   readonly offscreen: HTMLCanvasElement
   private ctx: CanvasRenderingContext2D
+  private pr = 1
 
   constructor(width: number, height: number) {
     this.offscreen = document.createElement('canvas')
@@ -21,50 +22,46 @@ export class TrackRenderer {
   render(track: Track): void {
     const { ctx } = this
     const { width, height } = this.offscreen
+    const s = this.pr
 
-    // White background
     ctx.fillStyle = '#f5f5f0'
     ctx.fillRect(0, 0, width, height)
 
-    // Draw outer track boundary (subtle grey fill between outer & inner lines)
-    this.drawTrackSurface(track)
-
-    // Draw the black centre line
-    this.drawCentreLine(track)
+    this.drawTrackSurface(track, s)
+    this.drawCentreLine(track, s)
   }
 
-  private drawTrackSurface(track: Track): void {
+  private drawTrackSurface(track: Track, s: number): void {
     const { ctx } = this
     const pts = track.centerline
-    const hw = track.lineWidth * 3.5   // half-width of the track surface
 
     ctx.save()
     ctx.strokeStyle = '#d8d0c0'
-    ctx.lineWidth = hw * 2
+    ctx.lineWidth = track.lineWidth * 3.5 * s
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
 
     ctx.beginPath()
-    ctx.moveTo(pts[0].x, pts[0].y)
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+    ctx.moveTo(pts[0].x * s, pts[0].y * s)
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * s, pts[i].y * s)
     if (track.closed) ctx.closePath()
     ctx.stroke()
     ctx.restore()
   }
 
-  private drawCentreLine(track: Track): void {
+  private drawCentreLine(track: Track, s: number): void {
     const { ctx } = this
     const pts = track.centerline
 
     ctx.save()
     ctx.strokeStyle = '#111'
-    ctx.lineWidth = track.lineWidth
+    ctx.lineWidth = track.lineWidth * s
     ctx.lineCap  = 'round'
     ctx.lineJoin = 'round'
 
     ctx.beginPath()
-    ctx.moveTo(pts[0].x, pts[0].y)
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+    ctx.moveTo(pts[0].x * s, pts[0].y * s)
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * s, pts[i].y * s)
     if (track.closed) ctx.closePath()
     ctx.stroke()
 
@@ -72,11 +69,11 @@ export class TrackRenderer {
     const p0 = pts[0], p1 = pts[1]
     const ang = Math.atan2(p1.y - p0.y, p1.x - p0.x)
     ctx.strokeStyle = '#fff'
-    ctx.lineWidth = 3
+    ctx.lineWidth = 3 * s
     ctx.beginPath()
-    const hw = track.lineWidth / 2 + 4
-    ctx.moveTo(p0.x - Math.sin(ang) * hw, p0.y + Math.cos(ang) * hw)
-    ctx.lineTo(p0.x + Math.sin(ang) * hw, p0.y - Math.cos(ang) * hw)
+    const hw = (track.lineWidth / 2 + 4) * s
+    ctx.moveTo(p0.x * s - Math.sin(ang) * hw, p0.y * s + Math.cos(ang) * hw)
+    ctx.lineTo(p0.x * s + Math.sin(ang) * hw, p0.y * s - Math.cos(ang) * hw)
     ctx.stroke()
 
     ctx.restore()
@@ -87,8 +84,8 @@ export class TrackRenderer {
    * Returns 0.0 = white (off line) → 1.0 = black (on line).
    */
   sampleAt(wx: number, wy: number): number {
-    const x = Math.round(wx)
-    const y = Math.round(wy)
+    const x = Math.round(wx * this.pr)
+    const y = Math.round(wy * this.pr)
     if (x < 0 || y < 0 || x >= this.offscreen.width || y >= this.offscreen.height) return 0
     const d = this.ctx.getImageData(x, y, 1, 1).data
     // Luminance from RGB
@@ -96,9 +93,10 @@ export class TrackRenderer {
     return 1 - lum   // invert: black line → 1.0
   }
 
-  resize(width: number, height: number, track: Track): void {
+  resize(width: number, height: number, pr: number, track: Track): void {
     this.offscreen.width  = width
     this.offscreen.height = height
+    this.pr = pr
     this.render(track)
   }
 }

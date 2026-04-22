@@ -68,7 +68,7 @@ header .spacer { flex: 1; }
 
 /* Track canvas panel */
 #track-panel {
-  grid-row: 1 / 3;
+  grid-row: 1 / -1;
   position: relative;
 }
 #track-canvas {
@@ -79,13 +79,11 @@ header .spacer { flex: 1; }
 
 /* Telemetry panel */
 #telemetry-panel {
-  grid-column: 2;
-  grid-row: 1;
 }
 #telemetry-canvas {
   display: block;
   width: 100%;
-  flex: 1;
+  height: 100%;
 }
 
 .telemetry-toggles {
@@ -108,8 +106,6 @@ header .spacer { flex: 1; }
 
 /* Editor panel */
 #editor-panel {
-  grid-column: 2;
-  grid-row: 2;
 }
 #editor-mount {
   flex: 1;

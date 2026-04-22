@@ -3,8 +3,8 @@ import type { Track, TrackPoint } from '../Track'
 export function makeFigure8Track(canvasW: number, canvasH: number): Track {
   const cx = canvasW / 2
   const cy = canvasH / 2
-  const rx = canvasW * 0.28
-  const ry = canvasH * 0.30
+  const rx = canvasW * 0.38
+  const ry = canvasH * 0.42
   const steps = 120
   const pts: TrackPoint[] = []
 
@@ -22,7 +22,7 @@ export function makeFigure8Track(canvasW: number, canvasH: number): Track {
     name: 'Figure 8',
     centerline: pts,
     closed: true,
-    lineWidth: 20,
+    lineWidth: 8,
     startX: pts[0].x,
     startY: pts[0].y,
     startAngle: Math.PI / 2,

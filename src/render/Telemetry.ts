@@ -52,12 +52,16 @@ export function pushTelemetry(
 }
 
 interface SparklineConfig {
-  label: string
-  color: string
-  min:   number
-  max:   number
-  ring:  RingBuffer
-  unit?: string
+  varName:  string   // short variable name shown left (e.g. "e", "v")
+  rowName:  string   // descriptive name shown right (e.g. "Error", "Voltage")
+  color:    string
+  min:      number
+  max:      number
+  ring:     RingBuffer
+  unit?:    string
+  varName2?: string
+  color2?:  string
+  ring2?:   RingBuffer
 }
 
 export function drawTelemetry(
@@ -79,9 +83,10 @@ export function drawTelemetry(
   ctx.fillRect(0, 0, W, H)
 
   const configs: SparklineConfig[] = [
-    { label: 'Error',    color: '#e94560', min: -1,           max: 1,           ring: data.error,   unit: '' },
-    { label: 'PWM',      color: '#50b4f0', min: -255,         max: 255,         ring: data.pwmL,    unit: '' },
-    { label: 'Voltage',  color: '#50e090', min: voltage_min,  max: voltage_max, ring: data.voltage, unit: 'V' },
+    { varName: 'e',  rowName: 'Error',   color: '#e94560', min: -1,          max: 1,           ring: data.error,   unit: '' },
+    { varName: 'L',  rowName: 'PWM',     color: '#50b4f0', min: -255,        max: 255,         ring: data.pwmL,    unit: '',
+      varName2: 'R', color2: '#f0a050',  ring2: data.pwmR },
+    { varName: 'v',  rowName: 'Voltage', color: '#50e090', min: voltage_min, max: voltage_max, ring: data.voltage, unit: 'V' },
   ]
 
   configs.forEach((cfg, row) => {
@@ -127,37 +132,52 @@ function drawSparkline(
   ctx.setLineDash([])
 
   const n = cfg.ring.count
-  if (n < 2) {
-    drawLabel(ctx, cfg, x0 + pad.left, y0 + 10, 0)
-    return
+
+  const drawLine = (ring: RingBuffer, color: string) => {
+    if (ring.count < 2) return
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    for (let i = 0; i < ring.count; i++) {
+      const v    = getRing(ring, i)
+      const frac = (v - cfg.min) / (cfg.max - cfg.min)
+      const px   = x0 + pad.left + (i / (TELEMETRY_SAMPLES - 1)) * innerW
+      const py   = y0 + pad.top  + innerH * (1 - Math.max(0, Math.min(1, frac)))
+      if (i === 0) ctx.moveTo(px, py)
+      else         ctx.lineTo(px, py)
+    }
+    ctx.stroke()
   }
 
-  // Sparkline
-  ctx.strokeStyle = cfg.color
-  ctx.lineWidth = 1.5
-  ctx.beginPath()
-  for (let i = 0; i < n; i++) {
-    const v    = getRing(cfg.ring, i)
-    const frac = (v - cfg.min) / (cfg.max - cfg.min)
-    const px   = x0 + pad.left + (i / (TELEMETRY_SAMPLES - 1)) * innerW
-    const py   = y0 + pad.top  + innerH * (1 - Math.max(0, Math.min(1, frac)))
-    if (i === 0) ctx.moveTo(px, py)
-    else         ctx.lineTo(px, py)
+  drawLine(cfg.ring, cfg.color)
+  if (cfg.ring2) drawLine(cfg.ring2, cfg.color2!)
+
+  // Labels: "varName: value" on left(/middle), descriptive rowName on right
+  ctx.font         = '10px monospace'
+  ctx.textBaseline = 'alphabetic'
+  const labelY     = y0 + 10
+
+  if (cfg.ring2) {
+    const lVal = n >= 2 ? getRing(cfg.ring, n - 1).toFixed(0) : '—'
+    ctx.fillStyle = cfg.color; ctx.textAlign = 'left'
+    ctx.fillText(`${cfg.varName}: ${lVal}`, x0 + pad.left, labelY)
+
+    if (cfg.ring2.count >= 2) {
+      const rVal = getRing(cfg.ring2, cfg.ring2.count - 1).toFixed(0)
+      ctx.fillStyle = cfg.color2!; ctx.textAlign = 'left'
+      ctx.fillText(`${cfg.varName2}: ${rVal}`, x0 + W * 0.45, labelY)
+    }
+
+    ctx.fillStyle = '#506080'; ctx.textAlign = 'right'
+    ctx.fillText(cfg.rowName, x0 + W - pad.right, labelY)
+  } else {
+    const val = n >= 2 ? getRing(cfg.ring, n - 1).toFixed(2) : '—'
+    ctx.fillStyle = cfg.color; ctx.textAlign = 'left'
+    ctx.fillText(`${cfg.varName}: ${val}${cfg.unit ?? ''}`, x0 + pad.left, labelY)
+
+    ctx.fillStyle = '#506080'; ctx.textAlign = 'right'
+    ctx.fillText(cfg.rowName, x0 + W - pad.right, labelY)
   }
-  ctx.stroke()
 
-  const latest = getRing(cfg.ring, n - 1)
-  drawLabel(ctx, cfg, x0 + pad.left, y0 + 10, latest)
-}
-
-function drawLabel(
-  ctx: CanvasRenderingContext2D,
-  cfg: SparklineConfig,
-  x: number,
-  y: number,
-  value: number,
-): void {
-  ctx.font      = '10px monospace'
-  ctx.fillStyle = cfg.color
-  ctx.fillText(`${cfg.label}  ${value.toFixed(2)}${cfg.unit ?? ''}`, x, y)
+  ctx.textAlign = 'left'
 }

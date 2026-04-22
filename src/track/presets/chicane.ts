@@ -28,7 +28,7 @@ export function makeChicaneTrack(canvasW: number, canvasH: number): Track {
     name: 'Chicane',
     centerline: pts,
     closed: true,
-    lineWidth: 20,
+    lineWidth: 8,
     startX: pts[0].x,
     startY: pts[0].y,
     startAngle: 0,
