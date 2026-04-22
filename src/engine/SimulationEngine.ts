@@ -18,6 +18,9 @@ import type { EncoderUpdateFn } from '../components/EncoderView'
 const MAX_CARS = 4
 const DT = 1 / PHYSICS_HZ
 
+export const WORLD_W = 800
+export const WORLD_H = 600
+
 export interface SimSettings {
   trackName: string
   speedPercent: number
@@ -115,13 +118,10 @@ export class SimulationEngine {
   }
 
   private buildTrack(): Track {
-    if (!this.trackCanvas) return makeOvalTrack(800, 600)
-    const W = this.trackCanvas.clientWidth || 800
-    const H = this.trackCanvas.clientHeight || 600
     switch (this.settings.trackName) {
-      case 'figure8': return makeFigure8Track(W, H)
-      case 'chicane': return makeChicaneTrack(W, H)
-      default: return makeOvalTrack(W, H)
+      case 'figure8': return makeFigure8Track(WORLD_W, WORLD_H)
+      case 'chicane': return makeChicaneTrack(WORLD_W, WORLD_H)
+      default:        return makeOvalTrack(WORLD_W, WORLD_H)
     }
   }
 
@@ -169,8 +169,8 @@ export class SimulationEngine {
 
     const pr = window.devicePixelRatio || 1
     this.trackRenderer.resize(
-      Math.round(this.trackCanvas.clientWidth * pr),
-      Math.round(this.trackCanvas.clientHeight * pr),
+      Math.round(WORLD_W * pr),
+      Math.round(WORLD_H * pr),
       this.currentTrack,
     )
 
