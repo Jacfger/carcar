@@ -4,6 +4,7 @@ import type { CarState } from '../simulation/Car'
 import type { TrackRenderer } from '../track/TrackRenderer'
 import type { TelemetryData } from './Telemetry'
 import { BATTERY } from '../constants'
+import { WORLD_W, WORLD_H } from '../engine/SimulationEngine'
 
 export class Renderer {
   private trackCanvas:     HTMLCanvasElement
@@ -51,13 +52,27 @@ export class Renderer {
     const W   = this.trackCanvas.clientWidth
     const H   = this.trackCanvas.clientHeight
 
-    // Blit the offscreen track image
-    ctx.drawImage(trackRenderer.offscreen, 0, 0, W, H)
+    // Scale world (800x600) to fit display canvas, preserving aspect ratio
+    const scale = Math.min(W / WORLD_W, H / WORLD_H)
+    const offX  = (W - WORLD_W * scale) / 2
+    const offY  = (H - WORLD_H * scale) / 2
+
+    // Clear letterbox areas
+    ctx.fillStyle = '#1a1a2e'
+    ctx.fillRect(0, 0, W, H)
+
+    ctx.save()
+    ctx.translate(offX, offY)
+    ctx.scale(scale, scale)
+
+    ctx.drawImage(trackRenderer.offscreen, 0, 0, WORLD_W, WORLD_H)
 
     // Draw all cars (back-to-front by colorIndex so car 0 is always on top)
     for (let i = cars.length - 1; i >= 0; i--) {
       drawCar(ctx, cars[i], showSensors)
     }
+
+    ctx.restore()
 
     // Telemetry always tracks car[0] (the "player" car)
     if (cars.length > 0) {
