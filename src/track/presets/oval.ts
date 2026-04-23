@@ -12,15 +12,15 @@ function buildOval(cx: number, cy: number, rx: number, ry: number, steps = 80): 
 export function makeOvalTrack(canvasW: number, canvasH: number): Track {
   const cx = canvasW / 2
   const cy = canvasH / 2
-  const rx = canvasW * 0.36
-  const ry = canvasH * 0.32
+  const rx = canvasW * 0.43
+  const ry = canvasH * 0.40
 
   // Start at the rightmost point of the oval, facing downward (π/2)
   return {
     name: 'Oval',
     centerline: buildOval(cx, cy, rx, ry),
     closed: true,
-    lineWidth: 20,
+    lineWidth: 8,
     startX: cx + rx,
     startY: cy,
     startAngle: Math.PI / 2,

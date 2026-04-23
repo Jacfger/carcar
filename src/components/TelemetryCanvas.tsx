@@ -7,10 +7,12 @@ interface TelemetryCanvasProps {
 
 export function TelemetryCanvas({ canvasRef, visible }: TelemetryCanvasProps) {
   return (
-    <canvas
-      id="telemetry-canvas"
-      ref={canvasRef}
-      style={{ display: visible ? 'block' : 'none' }}
-    />
+    <div style={{ display: visible ? 'flex' : 'none', flex: 1, minHeight: 0 }}>
+      <canvas
+        id="telemetry-canvas"
+        ref={canvasRef}
+        style={{ display: 'block', width: '100%', height: '100%' }}
+      />
+    </div>
   )
 }

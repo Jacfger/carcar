@@ -146,9 +146,9 @@ export function App() {
     engineRef.current?.setEncoderVisible(state.activeTab === 'encoder')
   }, [state.activeTab, engineRef])
 
-  // Panel toggle — rebuildScene after layout settles
+  // Panel toggle — resize canvas after layout settles, without resetting cars
   useEffect(() => {
-    const timer = setTimeout(() => engineRef.current?.rebuildScene(), 0)
+    const timer = setTimeout(() => engineRef.current?.resizeDisplay(), 0)
     return () => clearTimeout(timer)
   }, [state.graphsVisible, state.codeVisible, engineRef])
 
@@ -161,23 +161,9 @@ export function App() {
   const handleReset = useCallback(() => engineRef.current?.reset(), [engineRef])
   const handleAddCar = useCallback(() => engineRef.current?.addCar(), [engineRef])
 
-  // Layout styles — applied directly to the panels (no wrapper divs)
   const showRight = state.graphsVisible || state.codeVisible
   const layoutStyle: React.CSSProperties = {
     gridTemplateColumns: showRight ? '1fr 280px' : '1fr',
-    gridTemplateRows: (state.graphsVisible && state.codeVisible) ? '1fr 260px' : '1fr',
-  }
-
-  const telemetryStyle: React.CSSProperties = {
-    display: state.graphsVisible ? 'flex' : 'none',
-    gridRow: (state.graphsVisible && !state.codeVisible) ? '1 / -1' : undefined,
-    gridColumn: 2,
-  }
-
-  const editorStyle: React.CSSProperties = {
-    display: state.codeVisible ? 'flex' : 'none',
-    gridRow: (state.codeVisible && !state.graphsVisible) ? '1 / -1' : undefined,
-    gridColumn: 2,
   }
 
   return (
@@ -201,39 +187,49 @@ export function App() {
           canvasRef={trackCanvasRef}
           errorMessage={state.errorMessage}
         />
-        <TelemetryPanel
-          activeTab={state.activeTab}
-          onTabChange={(tab) => dispatch({ type: 'SET_ACTIVE_TAB', value: tab })}
-          style={telemetryStyle}
-        >
-          <TelemetryCanvas
-            canvasRef={telemetryCanvasRef}
-            visible={state.activeTab === 'graphs'}
-          />
-          <EncoderView
-            updateRef={encoderUpdateRef}
-            visible={state.activeTab === 'encoder'}
-          />
-          <SimulationToggles
-            varianceEnabled={state.varianceEnabled}
-            batteryEnabled={state.batteryEnabled}
-            casterEnabled={state.casterEnabled}
-            showSensors={state.showSensors}
-            speedPercent={state.speedPercent}
-            encoderCpr={state.encoderCpr}
-            encoderGearRatio={state.encoderGearRatio}
-            encoderNoise={state.encoderNoise}
-            onToggleVariance={() => dispatch({ type: 'TOGGLE_VARIANCE' })}
-            onToggleBattery={() => dispatch({ type: 'TOGGLE_BATTERY' })}
-            onToggleCaster={() => dispatch({ type: 'TOGGLE_CASTER' })}
-            onToggleSensors={() => dispatch({ type: 'TOGGLE_SENSORS' })}
-            onSpeedChange={(v) => dispatch({ type: 'SET_SPEED', value: v })}
-            onEncoderCprChange={(v) => dispatch({ type: 'SET_ENCODER_CPR', value: v })}
-            onEncoderGearRatioChange={(v) => dispatch({ type: 'SET_ENCODER_GEAR_RATIO', value: v })}
-            onToggleEncoderNoise={() => dispatch({ type: 'TOGGLE_ENCODER_NOISE' })}
-          />
-        </TelemetryPanel>
-        <EditorPanel codeRef={codeRef} style={editorStyle} />
+        {/* Always keep in DOM so Renderer's canvas reference stays valid */}
+        <div style={{ display: showRight ? 'flex' : 'none', flexDirection: 'column', gridColumn: 2, gridRow: '1 / -1', overflow: 'hidden', gap: '1px' }}>
+            <TelemetryPanel
+              activeTab={state.activeTab}
+              onTabChange={(tab) => dispatch({ type: 'SET_ACTIVE_TAB', value: tab })}
+              style={{ display: state.graphsVisible ? 'flex' : 'none', flex: 1, minHeight: 0 }}
+            >
+              <TelemetryCanvas
+                canvasRef={telemetryCanvasRef}
+                visible={state.activeTab === 'graphs'}
+              />
+              <EncoderView
+                updateRef={encoderUpdateRef}
+                visible={state.activeTab === 'encoder'}
+              />
+              <SimulationToggles
+                varianceEnabled={state.varianceEnabled}
+                batteryEnabled={state.batteryEnabled}
+                casterEnabled={state.casterEnabled}
+                showSensors={state.showSensors}
+                speedPercent={state.speedPercent}
+                encoderCpr={state.encoderCpr}
+                encoderGearRatio={state.encoderGearRatio}
+                encoderNoise={state.encoderNoise}
+                onToggleVariance={() => dispatch({ type: 'TOGGLE_VARIANCE' })}
+                onToggleBattery={() => dispatch({ type: 'TOGGLE_BATTERY' })}
+                onToggleCaster={() => dispatch({ type: 'TOGGLE_CASTER' })}
+                onToggleSensors={() => dispatch({ type: 'TOGGLE_SENSORS' })}
+                onSpeedChange={(v) => dispatch({ type: 'SET_SPEED', value: v })}
+                onEncoderCprChange={(v) => dispatch({ type: 'SET_ENCODER_CPR', value: v })}
+                onEncoderGearRatioChange={(v) => dispatch({ type: 'SET_ENCODER_GEAR_RATIO', value: v })}
+                onToggleEncoderNoise={() => dispatch({ type: 'TOGGLE_ENCODER_NOISE' })}
+              />
+            </TelemetryPanel>
+            <EditorPanel
+              codeRef={codeRef}
+              style={{
+                display: state.codeVisible ? 'flex' : 'none',
+                flex: state.graphsVisible ? '0 0 260px' : 1,
+                minHeight: 0,
+              }}
+            />
+        </div>
       </div>
     </>
   )

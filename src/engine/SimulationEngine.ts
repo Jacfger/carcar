@@ -163,18 +163,19 @@ export class SimulationEngine {
     this.carOptionsList = []
   }
 
+  resizeDisplay(): void {
+    this.renderer?.resize()
+    this.drawFrame()
+  }
+
   rebuildScene(): void {
     if (!this.trackCanvas || !this.renderer) return
     this.currentTrack = this.buildTrack()
 
     const pr = window.devicePixelRatio || 1
-    this.trackRenderer.resize(
-      Math.round(WORLD_W * pr),
-      Math.round(WORLD_H * pr),
-      this.currentTrack,
-    )
+    this.trackRenderer.resize(Math.round(WORLD_W * pr), Math.round(WORLD_H * pr), pr, this.currentTrack)
 
-    this.physics.setBounds(this.trackCanvas.clientWidth, this.trackCanvas.clientHeight)
+    this.physics.setBounds(WORLD_W, WORLD_H)
 
     const prevCount = Math.max(this.cars.length, 1)
     this.clearCars()

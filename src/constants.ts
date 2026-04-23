@@ -3,18 +3,18 @@
 // These are shared by the renderer AND the physics model — never duplicate them.
 
 export const CAR_GEOMETRY = {
-  chassis_w: 52,       // chassis rectangle width
-  chassis_h: 72,       // chassis rectangle height (front-to-back)
-  wheel_w: 10,         // each drive wheel width
-  wheel_h: 26,         // each drive wheel height
+  chassis_w: 28,       // chassis rectangle width
+  chassis_h: 40,       // chassis rectangle height (front-to-back)
+  wheel_w: 6,          // each drive wheel width
+  wheel_h: 14,         // each drive wheel height
   // wheel centers are at ±(chassis_w/2 + wheel_w/2) horizontally
-  axle_y: 12,          // local Y of drive axle (positive = toward back of car)
-  caster_y: 32,        // local Y of ball caster
-  caster_r: 5,         // ball caster circle radius
-  sensor_y: -38,       // local Y of sensor bar (negative = toward front)
+  axle_y: 7,           // local Y of drive axle (positive = toward back of car)
+  caster_y: 18,        // local Y of ball caster
+  caster_r: 3,         // ball caster circle radius
+  sensor_y: -22,       // local Y of sensor bar (negative = toward front)
   sensor_count: 7,
-  sensor_spread: 56,   // total width of sensor array
-  sensor_r: 3,         // radius of each sensor dot in renderer
+  sensor_spread: 32,   // total width of sensor array
+  sensor_r: 2,         // radius of each sensor dot in renderer
 } as const
 
 // Derived — wheel center X offset from car center
