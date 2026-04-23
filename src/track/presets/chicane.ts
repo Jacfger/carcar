@@ -24,6 +24,7 @@ export function makeChicaneTrack(canvasW: number, canvasH: number): Track {
   // Catmull-Rom interpolation for smooth curves
   const pts = catmullRomChain(raw, 12, true)
 
+  const startAngle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x)
   return {
     name: 'Chicane',
     centerline: pts,
@@ -31,7 +32,7 @@ export function makeChicaneTrack(canvasW: number, canvasH: number): Track {
     lineWidth: 8,
     startX: pts[0].x,
     startY: pts[0].y,
-    startAngle: 0,
+    startAngle,
   }
 }
 

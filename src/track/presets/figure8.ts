@@ -18,6 +18,7 @@ export function makeFigure8Track(canvasW: number, canvasH: number): Track {
     })
   }
 
+  const startAngle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x)
   return {
     name: 'Figure 8',
     centerline: pts,
@@ -25,6 +26,6 @@ export function makeFigure8Track(canvasW: number, canvasH: number): Track {
     lineWidth: 8,
     startX: pts[0].x,
     startY: pts[0].y,
-    startAngle: Math.PI / 2,
+    startAngle,
   }
 }
