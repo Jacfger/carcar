@@ -15,14 +15,15 @@ export function makeOvalTrack(canvasW: number, canvasH: number): Track {
   const rx = canvasW * 0.43
   const ry = canvasH * 0.40
 
-  // Start at the rightmost point of the oval, facing downward (π/2)
+  const centerline = buildOval(cx, cy, rx, ry)
+  const startAngle = Math.atan2(centerline[1].y - centerline[0].y, centerline[1].x - centerline[0].x)
   return {
     name: 'Oval',
-    centerline: buildOval(cx, cy, rx, ry),
+    centerline,
     closed: true,
     lineWidth: 8,
-    startX: cx + rx,
-    startY: cy,
-    startAngle: Math.PI / 2,
+    startX: centerline[0].x,
+    startY: centerline[0].y,
+    startAngle,
   }
 }
