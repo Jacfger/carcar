@@ -15,7 +15,7 @@ let errorSum  = 0
 let lastError = 0
 
 function pid_control(sensors, dt, car) {
-  const error = weightedCentroid(sensors)
+  const error = -weightedCentroid(sensors)
 
   errorSum  += error * dt
   const dError = (error - lastError) / dt
